@@ -196,30 +196,64 @@ export function XR5000QueryInterface() {
       ? API_ENDPOINTS
       : API_ENDPOINTS.filter((endpoint) => endpoint.category === selectedCategory)
 
+  // Make direct request to XR5000 from browser (required for local network access)
+  const makeDirectRequest = async (endpoint: string, method: string = "GET", body?: string) => {
+    // Ensure endpoint starts with /api/v1 for ADI API
+    let apiEndpoint = endpoint
+    if (endpoint && !endpoint.startsWith("/api/v1") && !endpoint.startsWith("http")) {
+      apiEndpoint = `/api/v1${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`
+    }
+
+    const fullUrl = `${baseUrl}${apiEndpoint}`
+    console.log(`[v0] XR5000 Direct: Attempting ${method} to ${fullUrl}`)
+
+    const fetchOptions: RequestInit = {
+      method: method,
+      headers: {
+        Accept: "application/xml, text/xml, application/json, */*",
+        "Content-Type": "application/xml",
+      },
+      mode: "cors",
+    }
+
+    if (body && (method === "POST" || method === "PUT")) {
+      fetchOptions.body = body
+    }
+
+    const response = await fetch(fullUrl, fetchOptions)
+    return response
+  }
+
   const testConnection = async () => {
     setLoading(true)
+    setResponse("")
     try {
-      const response = await fetch("/api/xr5000-proxy", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          method: "GET",
-          endpoint: "/polaris",
-          baseUrl,
-        }),
-      })
+      // Try direct connection from browser to local XR5000
+      const response = await makeDirectRequest("/polaris", "GET")
 
       if (response.ok) {
         setConnectionStatus("connected")
         const data = await response.text()
-        setResponse(data)
+        setResponse(`Conexão bem-sucedida!\n\n${data}`)
       } else {
         setConnectionStatus("error")
-        setResponse(`Erro de conexão: ${response.status} ${response.statusText}`)
+        const errorText = await response.text()
+        setResponse(`Erro HTTP ${response.status}: ${response.statusText}\n\n${errorText}`)
       }
     } catch (error) {
       setConnectionStatus("error")
-      setResponse(`Erro de rede: ${error}`)
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        setResponse(
+          `Erro de conexão: Não foi possível conectar à XR5000 em ${baseUrl}\n\n` +
+          `Possíveis causas:\n` +
+          `1. A balança não está ligada ou conectada\n` +
+          `2. O IP ou porta estão incorretos\n` +
+          `3. CORS está bloqueando a requisição (a XR5000 pode não permitir requisições do navegador)\n\n` +
+          `Dica: Verifique se consegue acessar ${baseUrl} diretamente no navegador.`
+        )
+      } else {
+        setResponse(`Erro de rede: ${error}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -229,6 +263,7 @@ export function XR5000QueryInterface() {
     if (!selectedEndpoint) return
 
     setLoading(true)
+    setResponse("")
     try {
       let endpoint = selectedEndpoint.path
 
@@ -247,22 +282,24 @@ export function XR5000QueryInterface() {
         endpoint += `?${queryString}`
       }
 
-      const requestOptions: any = {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          method: selectedEndpoint.method,
-          endpoint,
-          baseUrl,
-          ...(requestBody && { body: requestBody }),
-        }),
-      }
-
-      const response = await fetch("/api/xr5000-proxy", requestOptions)
+      const response = await makeDirectRequest(endpoint, selectedEndpoint.method, requestBody || undefined)
       const data = await response.text()
-      setResponse(data)
+      
+      if (response.ok) {
+        setResponse(data)
+      } else {
+        setResponse(`Erro HTTP ${response.status}: ${response.statusText}\n\n${data}`)
+      }
     } catch (error) {
-      setResponse(`Erro: ${error}`)
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        setResponse(
+          `Erro de conexão: Não foi possível executar a consulta.\n\n` +
+          `A XR5000 pode estar bloqueando requisições CORS do navegador.\n` +
+          `Verifique se a conexão está ativa e tente novamente.`
+        )
+      } else {
+        setResponse(`Erro: ${error}`)
+      }
     } finally {
       setLoading(false)
     }
