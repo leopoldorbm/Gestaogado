@@ -3,13 +3,13 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  images: {
-    unoptimized: true,
-  },
- 
   eslint: {
     ignoreDuringBuilds: true,
   },
+  images: {
+    unoptimized: true,
+  },
+  transpilePackages: ['geist', 'lucide-react'],
 }
 
 export default nextConfig
