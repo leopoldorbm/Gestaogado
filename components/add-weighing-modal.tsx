@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Save } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
 interface CattleData {
@@ -48,6 +48,8 @@ export function AddWeighingModal({ animal, open, onClose, onSuccess }: AddWeighi
         return
       }
 
+      const supabase = createClient()
+
       const { error } = await supabase.from("pesagens").insert({
         gado_id: animal.id,
         peso: Number.parseFloat(formData.peso),
@@ -78,7 +80,7 @@ export function AddWeighingModal({ animal, open, onClose, onSuccess }: AddWeighi
   }
 
   const getLastWeight = () => {
-    if (animal.pesagens.length === 0) return null
+    if (!animal.pesagens || animal.pesagens.length === 0) return null
 
     const sorted = animal.pesagens.sort(
       (a, b) => new Date(b.data_pesagem).getTime() - new Date(a.data_pesagem).getTime(),

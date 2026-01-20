@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertTriangle, Clock, Scale, Search, CheckCircle, XCircle } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { AddWeighingModal } from "@/components/add-weighing-modal"
 
@@ -48,6 +48,8 @@ export function AlertsInterface() {
 
   const loadAlerts = async () => {
     try {
+      const supabase = createClient()
+
       const { data: cattle, error } = await supabase
         .from("gado")
         .select(`

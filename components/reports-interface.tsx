@@ -18,7 +18,7 @@ import {
   LineChart,
   Line,
 } from "recharts"
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { TrendingUp, TrendingDown } from "lucide-react"
 
 interface ReportData {
@@ -58,6 +58,8 @@ export function ReportsInterface() {
 
   const loadReportData = async () => {
     try {
+      const supabase = createClient()
+
       // Buscar dados dos animais com pesagens
       const { data: cattle, error } = await supabase
         .from("gado")

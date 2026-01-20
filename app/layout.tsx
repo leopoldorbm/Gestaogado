@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { ScaleConnectionProvider } from "@/contexts/scale-connection-context"
+import { FarmProvider } from "@/contexts/farm-context"
 import { ThemeProvider } from "next-themes"
 import { AppHeader } from "@/components/app-header"
 import "./globals.css"
@@ -35,8 +36,10 @@ html {
       <body>
         <ScaleConnectionProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <AppHeader />
-            <main className="min-h-screen">{children}</main>
+            <FarmProvider>
+              <AppHeader />
+              <main className="min-h-screen">{children}</main>
+            </FarmProvider>
           </ThemeProvider>
         </ScaleConnectionProvider>
       </body>

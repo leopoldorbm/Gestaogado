@@ -9,10 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Search, Eye, Scale, Filter } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { CattleDetailModal } from "@/components/cattle-detail-modal"
 import { AddWeighingModal } from "@/components/add-weighing-modal"
+import { useFarm } from "@/contexts/farm-context"
 
 interface CattleData {
   id: string
@@ -39,59 +40,102 @@ interface Fazenda {
 
 export function CattleManagementInterface() {
   const { toast } = useToast()
+  const { selectedFarm, fazendas } = useFarm()
   const [cattle, setCattle] = useState<CattleData[]>([])
-  const [fazendas, setFazendas] = useState<Fazenda[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedAnimal, setSelectedAnimal] = useState<CattleData | null>(null)
   const [weighingAnimal, setWeighingAnimal] = useState<CattleData | null>(null)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("")
   const [sexFilter, setSexFilter] = useState("Todos")
-  const [fazendaFilter, setFazendaFilter] = useState("Todas")
   const [statusFilter, setStatusFilter] = useState("ativo")
 
   useEffect(() => {
     loadCattle()
-    loadFazendas()
-  }, [])
-
-  const loadFazendas = async () => {
-    const { data, error } = await supabase.from("fazendas").select("id, nome").order("nome")
-
-    if (error) {
-      console.error("Erro ao carregar fazendas:", error)
-      return
-    }
-
-    setFazendas(data || [])
-  }
+  }, [selectedFarm])
 
   const loadCattle = async () => {
     setLoading(true)
+    setConnectionError(null)
+    console.log("[v0] Loading cattle for farm:", selectedFarm)
 
-    const { data, error } = await supabase
-      .from("gado")
-      .select(`
-        *,
-        fazendas:fazenda_id(nome),
-        lotes:lote_id(nome),
-        pesagens(peso, data_pesagem)
-      `)
-      .order("marca_fogo")
+    try {
+      const supabase = createClient()
 
-    if (error) {
-      console.error("Erro ao carregar gado:", error)
+      let query = supabase
+        .from("gado")
+        .select(`
+          *,
+          fazendas:fazenda_id(nome),
+          lotes:lote_id(nome),
+          pesagens(peso, data_pesagem)
+        `)
+        .order("marca_fogo")
+
+      // Apply farm filter if a specific farm is selected
+      if (selectedFarm) {
+        query = query.eq("fazenda_id", selectedFarm)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error("[v0] Erro ao carregar gado:", error)
+
+        const errorMessage = error.message || String(error)
+        if (
+          errorMessage.includes("upstream connect error") ||
+          errorMessage.includes("connection refused") ||
+          errorMessage.includes("Failed to fetch") ||
+          errorMessage.includes("network")
+        ) {
+          setConnectionError(
+            "Não foi possível conectar ao banco de dados. Verifique se o projeto Supabase está ativo e acessível.",
+          )
+          toast({
+            title: "Erro de Conexão",
+            description: "Não foi possível conectar ao banco de dados. Clique em 'Tentar Novamente' para reconectar.",
+            variant: "destructive",
+          })
+        } else if (errorMessage.includes("relation") && errorMessage.includes("does not exist")) {
+          setConnectionError("As tabelas do banco de dados não foram criadas. Execute os scripts SQL necessários.")
+          toast({
+            title: "Banco de Dados Não Configurado",
+            description: "Execute os scripts SQL para criar as tabelas necessárias.",
+            variant: "destructive",
+          })
+        } else {
+          setConnectionError(`Erro ao carregar dados: ${errorMessage}`)
+          toast({
+            title: "Erro",
+            description: "Erro ao carregar dados do rebanho",
+            variant: "destructive",
+          })
+        }
+
+        setCattle([])
+        setLoading(false)
+        return
+      }
+
+      console.log("[v0] Successfully loaded cattle:", data?.length || 0, "animals")
+      setCattle(data || [])
+      setConnectionError(null)
+    } catch (err) {
+      console.error("[v0] Unexpected error loading cattle:", err)
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      setConnectionError(`Erro inesperado: ${errorMessage}`)
       toast({
-        title: "Erro",
-        description: "Erro ao carregar dados do rebanho",
+        title: "Erro Inesperado",
+        description: "Ocorreu um erro ao carregar os dados. Tente novamente.",
         variant: "destructive",
       })
-      return
+      setCattle([])
+    } finally {
+      setLoading(false)
     }
-
-    setCattle(data || [])
-    setLoading(false)
   }
 
   const getLastWeighing = (pesagens: { peso: number; data_pesagem: string }[]) => {
@@ -120,13 +164,12 @@ export function CattleManagementInterface() {
       (animal.brinco_eletronico?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
 
     const matchesSex = sexFilter === "Todos" || animal.sexo === sexFilter
-    const matchesFazenda = fazendaFilter === "Todas" || animal.fazendas?.nome === fazendaFilter
     const matchesStatus =
       statusFilter === "todos" ||
       (statusFilter === "ativo" && animal.ativo) ||
       (statusFilter === "inativo" && !animal.ativo)
 
-    return matchesSearch && matchesSex && matchesFazenda && matchesStatus
+    return matchesSearch && matchesSex && matchesStatus
   })
 
   const formatCurrency = (value: number | null) => {
@@ -155,6 +198,33 @@ export function CattleManagementInterface() {
     )
   }
 
+  if (connectionError) {
+    return (
+      <Card>
+        <CardContent className="py-8">
+          <div className="text-center space-y-4">
+            <div className="text-destructive text-lg font-semibold">Erro de Conexão</div>
+            <p className="text-muted-foreground max-w-md mx-auto">{connectionError}</p>
+            <div className="space-y-2">
+              <Button onClick={loadCattle} variant="default">
+                Tentar Novamente
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                <p>Possíveis causas:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Projeto Supabase pausado ou inativo</li>
+                  <li>Problemas de conectividade de rede</li>
+                  <li>Tabelas do banco de dados não criadas</li>
+                  <li>Credenciais de acesso incorretas</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Filtros */}
@@ -163,10 +233,15 @@ export function CattleManagementInterface() {
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
             Filtros
+            {selectedFarm && (
+              <Badge variant="outline" className="ml-2">
+                {fazendas.find((f) => f.id === selectedFarm)?.nome || "Fazenda Selecionada"}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="search">Buscar</Label>
               <div className="relative">
@@ -191,23 +266,6 @@ export function CattleManagementInterface() {
                   <SelectItem value="Todos">Todos</SelectItem>
                   <SelectItem value="Macho">Macho</SelectItem>
                   <SelectItem value="Fêmea">Fêmea</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fazenda-filter">Fazenda</Label>
-              <Select value={fazendaFilter} onValueChange={setFazendaFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Todas">Todas</SelectItem>
-                  {fazendas.map((fazenda) => (
-                    <SelectItem key={fazenda.id} value={fazenda.nome}>
-                      {fazenda.nome}
-                    </SelectItem>
-                  ))}
                 </SelectContent>
               </Select>
             </div>

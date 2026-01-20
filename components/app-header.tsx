@@ -14,26 +14,34 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Settings, LogOut, User, Building2, Plus, Home, ArrowLeft } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
-
-interface Farm {
-  id: string
-  nome: string
-  endereco?: string
-}
+import { useFarm } from "@/contexts/farm-context"
 
 export function AppHeader() {
-  const [farms, setFarms] = useState<Farm[]>([])
-  const [selectedFarm, setSelectedFarm] = useState<string>("")
+  const { selectedFarm, setSelectedFarm, fazendas, setFazendas, isLoading, setIsLoading } = useFarm()
   const [userEmail, setUserEmail] = useState<string>("")
-  const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
+
+  let supabase: any
+  try {
+    supabase = createClient()
+  } catch (error) {
+    console.error("[v0] Failed to create Supabase client:", error)
+    supabase = null
+  }
 
   useEffect(() => {
-    loadUserAndFarms()
+    if (supabase) {
+      loadUserAndFarms()
+    } else {
+      console.warn("[v0] Supabase client not available - using offline mode")
+      setIsLoading(false)
+    }
   }, [])
 
   const loadUserAndFarms = async () => {
+    if (!supabase) return
+
+    setIsLoading(true)
     try {
       // Get current user
       const {
@@ -45,42 +53,40 @@ export function AppHeader() {
         // Load user's farms
         const { data: farmsData, error } = await supabase
           .from("fazendas")
-          .select("id, nome, endereco")
+          .select("id, nome")
           .eq("user_id", user.id)
           .order("nome")
 
         if (error) {
           console.error("[v0] Error loading farms:", error)
         } else {
-          setFarms(farmsData || [])
+          setFazendas(farmsData || [])
 
-          // Get selected farm from localStorage or select first farm
           const savedFarm = localStorage.getItem("selectedFarm")
-          if (savedFarm && farmsData?.find((f) => f.id === savedFarm)) {
-            setSelectedFarm(savedFarm)
-          } else if (farmsData && farmsData.length > 0) {
+          if (!selectedFarm && (!savedFarm || savedFarm === "null") && farmsData && farmsData.length > 0) {
+            console.log("[v0] Auto-selecting first farm:", farmsData[0].id)
             setSelectedFarm(farmsData[0].id)
-            localStorage.setItem("selectedFarm", farmsData[0].id)
           }
         }
       }
     } catch (error) {
       console.error("[v0] Error loading user and farms:", error)
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
   const handleFarmChange = (farmId: string) => {
-    setSelectedFarm(farmId)
-    localStorage.setItem("selectedFarm", farmId)
-    // Trigger a page refresh to update data for the new farm
-    window.location.reload()
+    const newFarmId = farmId === "all" ? null : farmId
+    console.log("[v0] Header: Farm selection changed to:", newFarmId)
+    setSelectedFarm(newFarmId)
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    localStorage.removeItem("selectedFarm")
+    if (supabase) {
+      await supabase.auth.signOut()
+    }
+    setSelectedFarm(null)
     router.push("/auth/login")
   }
 
@@ -88,7 +94,7 @@ export function AppHeader() {
     return email.split("@")[0].substring(0, 2).toUpperCase()
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center justify-between">
@@ -125,15 +131,16 @@ export function AppHeader() {
 
           <h1 className="text-xl font-semibold">Agro DPE</h1>
 
-          {farms.length > 0 && (
+          {fazendas.length > 0 && (
             <div className="flex items-center space-x-2">
               <Building2 className="h-4 w-4 text-muted-foreground" />
-              <Select value={selectedFarm} onValueChange={handleFarmChange}>
+              <Select value={selectedFarm || "all"} onValueChange={handleFarmChange}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Selecione uma fazenda" />
                 </SelectTrigger>
                 <SelectContent>
-                  {farms.map((farm) => (
+                  <SelectItem value="all">Todas as Fazendas</SelectItem>
+                  {fazendas.map((farm) => (
                     <SelectItem key={farm.id} value={farm.id}>
                       {farm.nome}
                     </SelectItem>
@@ -145,7 +152,7 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center space-x-4">
-          {farms.length === 0 && (
+          {fazendas.length === 0 && (
             <Button variant="outline" size="sm" onClick={() => router.push("/configuracoes")}>
               <Plus className="h-4 w-4 mr-2" />
               Criar Fazenda

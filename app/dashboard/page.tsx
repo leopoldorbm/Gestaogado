@@ -1,31 +1,38 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { FarmSelector } from "@/components/farm-selector"
 import { DashboardStats } from "@/components/dashboard-stats"
 import { AlertNotification } from "@/components/alert-notification"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MilkIcon as Cow, BarChart3, Plus, AlertTriangle, MapPin, Scale, Usb } from "lucide-react"
+import { Cog as Cow, BarChart3, Plus, AlertTriangle, MapPin, Scale, Usb, Search } from "lucide-react"
 import Link from "next/link"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  const { data, error } = await supabase.auth.getUser()
-  if (error || !data?.user) {
-    redirect("/auth/login")
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (error || !data?.user) {
+      // Only redirect if we have a real Supabase configuration
+      const hasSupabaseConfig = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (hasSupabaseConfig) {
+        redirect("/auth/login")
+      }
+      // If no Supabase config, continue without authentication
+    }
+  } catch (error) {
+    console.log("[v0] Authentication check failed, continuing without auth:", error)
   }
 
   return (
     <div className="flex-1 w-full flex flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Agro DPE - Sistema de Gestão de Gado</h1>
+          <h1 className="text-3xl font-bold">Sistema de Gestão de Gado</h1>
           <p className="text-muted-foreground">
             Controle completo do seu rebanho com relatórios e alertas inteligentes
           </p>
         </div>
-        <FarmSelector />
       </div>
 
       <AlertNotification />
@@ -61,6 +68,12 @@ export default async function DashboardPage() {
               <Button className="w-full justify-start bg-transparent" variant="outline">
                 <Usb className="mr-2 h-4 w-4" />
                 Comunicação com Balança
+              </Button>
+            </Link>
+            <Link href="/consulta-balanca">
+              <Button className="w-full justify-start bg-transparent" variant="outline">
+                <Search className="mr-2 h-4 w-4" />
+                Consulta à Balança XR5000
               </Button>
             </Link>
             <Link href="/relatorios">

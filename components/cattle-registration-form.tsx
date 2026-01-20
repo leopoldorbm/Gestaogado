@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Save, Loader2, AlertTriangle, Database } from "lucide-react"
-import { supabase } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 
@@ -58,31 +58,61 @@ export function CattleRegistrationForm() {
 
   const checkDatabaseSetup = async () => {
     setIsCheckingDatabase(true)
-    try {
-      const { data, error } = await supabase.from("fazendas").select("id").limit(1)
+    setDatabaseError(null)
 
-      if (error && error.message.includes("table") && error.message.includes("does not exist")) {
+    try {
+      const supabase = createClient()
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 20000),
+      )
+
+      const fazendaQueryPromise = supabase.from("fazendas").select("id").limit(1)
+      const gadoQueryPromise = supabase.from("gado").select("id").limit(1)
+
+      const [fazendaResult, gadoResult] = (await Promise.all([
+        Promise.race([fazendaQueryPromise, timeoutPromise]),
+        Promise.race([gadoQueryPromise, timeoutPromise]),
+      ])) as any[]
+
+      if (fazendaResult.error && fazendaResult.error.message.includes("does not exist")) {
         setDatabaseError("As tabelas do banco de dados ainda não foram criadas. Execute os scripts SQL primeiro.")
         return
       }
 
-      if (error && error.message.includes("schema cache")) {
-        setDatabaseError("As tabelas do banco de dados não foram encontradas. Execute os scripts SQL primeiro.")
+      if (gadoResult.error && gadoResult.error.message.includes("does not exist")) {
+        setDatabaseError("As tabelas do banco de dados ainda não foram criadas. Execute os scripts SQL primeiro.")
         return
       }
 
-      if (error) {
+      if (fazendaResult.error || gadoResult.error) {
+        const error = fazendaResult.error || gadoResult.error
         console.error("Erro ao verificar banco:", error)
+
+        if (error.message.includes("schema cache")) {
+          setDatabaseError("As tabelas do banco de dados não foram encontradas. Execute os scripts SQL primeiro.")
+          return
+        }
+
         setDatabaseError(`Erro de conexão: ${error.message}`)
         return
       }
 
+      console.log("[v0] Database check successful - tables exist and are accessible")
       setDatabaseError(null)
       loadFazendas()
       loadAnimais()
     } catch (error: any) {
       console.error("Erro ao verificar configuração do banco:", error)
-      setDatabaseError("Erro ao verificar configuração do banco de dados")
+      if (error.message === "Connection timeout") {
+        setDatabaseError(
+          "Timeout na conexão com o banco de dados. A conexão está lenta. Tente novamente em alguns segundos.",
+        )
+      } else if (error.message && error.message.includes("NetworkError")) {
+        setDatabaseError("Erro de rede ao conectar com o banco de dados. Verifique sua conexão com a internet.")
+      } else {
+        setDatabaseError("Erro ao verificar configuração do banco de dados. Tente recarregar a página.")
+      }
     } finally {
       setIsCheckingDatabase(false)
     }
@@ -90,7 +120,15 @@ export function CattleRegistrationForm() {
 
   const loadFazendas = async () => {
     try {
-      const { data, error } = await supabase.from("fazendas").select("id, nome").order("nome")
+      const supabase = createClient()
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 15000),
+      )
+
+      const queryPromise = supabase.from("fazendas").select("id, nome").order("nome")
+
+      const { data, error } = (await Promise.race([queryPromise, timeoutPromise])) as any
 
       if (error) {
         console.error("Erro ao carregar fazendas:", error)
@@ -103,17 +141,30 @@ export function CattleRegistrationForm() {
       setFazendas(data || [])
     } catch (error: any) {
       console.error("Erro ao carregar fazendas:", error)
-      setDatabaseError("Erro ao carregar dados das fazendas")
+      if (error.message === "Connection timeout" || error.message.includes("NetworkError")) {
+        setFazendas([])
+        console.log("Fazendas não puderam ser carregadas devido a timeout, mas continuando...")
+      } else {
+        setDatabaseError("Erro ao carregar dados das fazendas")
+      }
     }
   }
 
   const loadLotes = async (fazendaId: string) => {
     try {
-      const { data, error } = await supabase
+      const supabase = createClient()
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 15000),
+      )
+
+      const queryPromise = supabase
         .from("lotes")
         .select("id, nome, fazenda_id")
         .eq("fazenda_id", fazendaId)
         .order("nome")
+
+      const { data, error } = (await Promise.race([queryPromise, timeoutPromise])) as any
 
       if (error) {
         console.error("Erro ao carregar lotes:", error)
@@ -123,16 +174,21 @@ export function CattleRegistrationForm() {
       setLotes(data || [])
     } catch (error: any) {
       console.error("Erro ao carregar lotes:", error)
+      setLotes([])
     }
   }
 
   const loadAnimais = async () => {
     try {
-      const { data, error } = await supabase
-        .from("gado")
-        .select("id, marca_fogo, sexo")
-        .eq("ativo", true)
-        .order("marca_fogo")
+      const supabase = createClient()
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 15000),
+      )
+
+      const queryPromise = supabase.from("gado").select("id, marca_fogo, sexo").eq("ativo", true).order("marca_fogo")
+
+      const { data, error } = (await Promise.race([queryPromise, timeoutPromise])) as any
 
       if (error) {
         console.error("Erro ao carregar animais:", error)
@@ -142,6 +198,7 @@ export function CattleRegistrationForm() {
       setAnimais(data || [])
     } catch (error: any) {
       console.error("Erro ao carregar animais:", error)
+      setAnimais([])
     }
   }
 
@@ -191,7 +248,13 @@ export function CattleRegistrationForm() {
         return
       }
 
-      const { data: animalData, error: animalError } = await supabase
+      const supabase = createClient()
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timeout")), 25000),
+      )
+
+      const insertPromise = supabase
         .from("gado")
         .insert({
           marca_fogo: formData.marca_fogo,
@@ -200,30 +263,37 @@ export function CattleRegistrationForm() {
           origem: formData.origem || null,
           status_reproducao: formData.status_reproducao,
           data_nascimento: formData.data_nascimento || null,
-          pai_id: formData.pai_id || null,
-          mae_id: formData.mae_id || null,
+          pai_id: formData.pai_id === "none" || !formData.pai_id ? null : formData.pai_id,
+          mae_id: formData.mae_id === "none" || !formData.mae_id ? null : formData.mae_id,
           fazenda_id: formData.fazenda_id,
-          lote_id: formData.lote_id || null,
+          lote_id: formData.lote_id === "none" || !formData.lote_id ? null : formData.lote_id,
           data_entrada: formData.data_entrada,
           valor_compra: formData.valor_compra ? Number.parseFloat(formData.valor_compra) : null,
         })
         .select()
         .single()
 
+      const { data: animalData, error: animalError } = (await Promise.race([insertPromise, timeoutPromise])) as any
+
       if (animalError) {
         throw animalError
       }
 
       if (formData.peso_inicial && animalData) {
-        const { error: pesagemError } = await supabase.from("pesagens").insert({
+        const pesagemPromise = supabase.from("pesagens").insert({
           gado_id: animalData.id,
           peso: Number.parseFloat(formData.peso_inicial),
           data_pesagem: formData.data_entrada,
           observacoes: formData.observacoes_peso || null,
         })
 
-        if (pesagemError) {
-          console.error("Erro ao inserir pesagem:", pesagemError)
+        try {
+          const { error: pesagemError } = (await Promise.race([pesagemPromise, timeoutPromise])) as any
+          if (pesagemError) {
+            console.error("Erro ao inserir pesagem:", pesagemError)
+          }
+        } catch (pesagemErr) {
+          console.error("Timeout ao inserir pesagem:", pesagemErr)
         }
       }
 
@@ -235,9 +305,19 @@ export function CattleRegistrationForm() {
       router.push("/gado")
     } catch (error: any) {
       console.error("Erro ao cadastrar animal:", error)
+      let errorMessage = "Erro ao cadastrar animal"
+
+      if (error.message === "Connection timeout") {
+        errorMessage = "A operação demorou mais que o esperado. Verifique sua conexão e tente novamente."
+      } else if (error.message && error.message.includes("NetworkError")) {
+        errorMessage = "Erro de rede. Verifique sua conexão com a internet e tente novamente."
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+
       toast({
         title: "Erro",
-        description: error.message || "Erro ao cadastrar animal",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -290,16 +370,26 @@ export function CattleRegistrationForm() {
                   Execute o script: <code className="bg-muted px-1 rounded">scripts/01-create-cattle-tables.sql</code>
                 </li>
                 <li>
-                  Execute o script: <code className="bg-muted px-1 rounded">scripts/02-seed-sample-data.sql</code>
+                  Execute o script (opcional):{" "}
+                  <code className="bg-muted px-1 rounded">scripts/02-seed-sample-data.sql</code>
                 </li>
-                <li>Recarregue esta página</li>
+                <li>Clique em "Verificar Novamente" abaixo</li>
               </ol>
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={checkDatabaseSetup} variant="outline" size="sm">
-                <Database className="h-4 w-4 mr-2" />
-                Verificar Novamente
+              <Button onClick={checkDatabaseSetup} variant="outline" size="sm" disabled={isCheckingDatabase}>
+                {isCheckingDatabase ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <Database className="h-4 w-4 mr-2" />
+                    Verificar Novamente
+                  </>
+                )}
               </Button>
               <Button onClick={() => router.push("/")} variant="outline" size="sm">
                 Voltar ao Início
