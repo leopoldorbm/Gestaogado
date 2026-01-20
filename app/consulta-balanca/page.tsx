@@ -2,12 +2,14 @@ import { XR5000QueryInterface } from "@/components/xr5000-query-interface"
 
 export default function ConsultaBalancaPage() {
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Consulta à Balança XR5000</h1>
-        <p className="text-gray-600 mt-2">
-          Interface completa para consultas e operações com a balança XR5000 via Animal Data Transfer REST API
-        </p>
+    <div className="flex-1 w-full flex flex-col gap-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Consulta a Balanca XR5000</h1>
+          <p className="text-muted-foreground">
+            Referencia de comandos SCP e teste de conexao HTTP com a balanca
+          </p>
+        </div>
       </div>
       <XR5000QueryInterface />
     </div>

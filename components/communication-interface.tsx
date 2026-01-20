@@ -905,10 +905,78 @@ export function CommunicationInterface() {
 
   return (
     <div className="space-y-6">
+      {/* Status Cards - Dashboard Style */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Status</CardTitle>
+            <div
+              className={`w-3 h-3 rounded-full ${
+                connectionStatus === "connected"
+                  ? "bg-green-500"
+                  : connectionStatus === "error"
+                    ? "bg-red-500"
+                    : connectionStatus === "connecting" || connectionStatus === "detecting"
+                      ? "bg-yellow-500 animate-pulse"
+                      : "bg-muted-foreground/30"
+              }`}
+            />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {connectionStatus === "connected" && "Conectado"}
+              {connectionStatus === "connecting" && "Conectando"}
+              {connectionStatus === "detecting" && "Detectando"}
+              {connectionStatus === "disconnected" && "Desconectado"}
+              {connectionStatus === "error" && "Erro"}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {config.mode === "simulation" ? "Modo simulacao" : `Modo ${config.mode}`}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Peso Atual</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${currentReading?.stable ? "text-green-600" : currentReading ? "text-yellow-600" : ""}`}>
+              {currentReading ? `${currentReading.stable ? "" : "~"}${currentReading.weight.toFixed(1)} kg` : "-- kg"}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {currentReading ? (currentReading.stable ? "Leitura estavel" : "Leitura instavel") : "Aguardando leitura"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Leituras</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{recentReadings.length}</div>
+            <p className="text-xs text-muted-foreground">Leituras recentes</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Protocolo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold uppercase">{config.protocol}</div>
+            <p className="text-xs text-muted-foreground">
+              {config.protocol === "scp" ? "Serial Communications" : "Animal Data Interface"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Connection Configuration */}
-      <Card>
+      <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
-          <CardTitle>Configuração da Conexão</CardTitle>
+          <CardTitle>Configuracao da Conexao</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -1027,14 +1095,14 @@ export function CommunicationInterface() {
         </CardContent>
       </Card>
 
-      {/* Connection Status */}
-      <Card>
+      {/* Connection Actions */}
+      <Card className="hover:shadow-lg transition-shadow">
         <CardHeader>
-          <CardTitle>Status da Conexão</CardTitle>
+          <CardTitle>Controle de Conexao</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+            <div className="flex items-center space-x-3">
               <Badge
                 variant={
                   connectionStatus === "connected"
@@ -1045,6 +1113,7 @@ export function CommunicationInterface() {
                         ? "destructive"
                         : "outline"
                 }
+                className="text-sm px-3 py-1"
               >
                 {connectionStatus === "connected" && "Conectado"}
                 {connectionStatus === "connecting" && "Conectando..."}
@@ -1054,23 +1123,24 @@ export function CommunicationInterface() {
               </Badge>
               {selectedBluetoothDevice && <Badge variant="outline">{selectedBluetoothDevice.name}</Badge>}
             </div>
-            <div className="space-x-2">
+            <div className="flex gap-2">
               <Button
                 onClick={detectScale}
                 disabled={isDetecting || connectionStatus === "connecting"}
                 variant="outline"
+                className="bg-transparent"
               >
                 {isDetecting
                   ? "Detectando..."
                   : config.mode === "bluetooth"
                     ? "Escanear Dispositivos"
-                    : "Detectar Balança"}
+                    : "Detectar Balanca"}
               </Button>
               {connectionStatus === "disconnected" && detectedDevices.length > 0 && (
                 <Button onClick={connectToScale}>Conectar</Button>
               )}
               {connectionStatus === "connected" && (
-                <Button onClick={disconnectFromScale} variant="outline">
+                <Button onClick={disconnectFromScale} variant="outline" className="bg-transparent">
                   Desconectar
                 </Button>
               )}
@@ -1078,17 +1148,18 @@ export function CommunicationInterface() {
           </div>
 
           {errorMessage && (
-            <Alert className="mb-4">
-              <AlertDescription>{errorMessage}</AlertDescription>
+            <Alert className="mb-4 border-amber-200 bg-amber-50/50">
+              <AlertDescription className="text-amber-800">{errorMessage}</AlertDescription>
             </Alert>
           )}
 
           {detectedDevices.length > 0 && (
-            <div>
+            <div className="p-4 bg-muted/50 rounded-lg">
               <h4 className="font-medium mb-2">Dispositivos Detectados:</h4>
-              <ul className="list-disc list-inside space-y-1">
+              <ul className="space-y-2">
                 {detectedDevices.map((device, index) => (
-                  <li key={index} className="text-sm">
+                  <li key={index} className="text-sm flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
                     {device}
                   </li>
                 ))}
@@ -1098,27 +1169,35 @@ export function CommunicationInterface() {
         </CardContent>
       </Card>
 
-      {/* Current Reading */}
+      {/* Current Reading - Large Display */}
       {connectionStatus === "connected" && (
-        <Card>
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle>Leitura Atual</CardTitle>
           </CardHeader>
           <CardContent>
             {currentReading ? (
-              <div className="text-center">
-                <div className={`text-3xl font-bold ${currentReading.stable ? "text-green-600" : "text-yellow-600"}`}>
-                  {currentReading.stable ? "" : "U"}
-                  {currentReading.weight.toFixed(1)} kg
+              <div className="text-center py-8">
+                <div className={`text-6xl font-bold ${currentReading.stable ? "text-green-600" : "text-yellow-600"}`}>
+                  {currentReading.stable ? "" : "~"}
+                  {currentReading.weight.toFixed(1)}
+                  <span className="text-3xl ml-2">kg</span>
                 </div>
                 {currentReading.animalId && (
-                  <div className="text-sm text-gray-600 mt-1">ID: {currentReading.animalId}</div>
+                  <div className="text-lg text-muted-foreground mt-3">ID: {currentReading.animalId}</div>
                 )}
-                <div className="text-xs text-gray-500 mt-1">{currentReading.timestamp.toLocaleTimeString()}</div>
-                <div className="text-xs text-gray-500 mt-1">{currentReading.stable ? "Estável" : "Instável"}</div>
+                <div className="flex items-center justify-center gap-4 mt-4">
+                  <Badge variant={currentReading.stable ? "default" : "secondary"}>
+                    {currentReading.stable ? "Estavel" : "Instavel"}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">{currentReading.timestamp.toLocaleTimeString()}</span>
+                </div>
               </div>
             ) : (
-              <div className="text-center text-gray-500">Aguardando leitura da balança...</div>
+              <div className="text-center py-8 text-muted-foreground">
+                <div className="text-6xl font-bold mb-2">-- kg</div>
+                <p>Aguardando leitura da balanca...</p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1126,20 +1205,20 @@ export function CommunicationInterface() {
 
       {/* Recent Readings */}
       {recentReadings.length > 0 && (
-        <Card>
+        <Card className="hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle>Leituras Recentes</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {recentReadings.map((reading, index) => (
-                <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className={`font-medium ${reading.stable ? "text-green-600" : "text-yellow-600"}`}>
-                    {reading.stable ? "" : "U"}
+                <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                  <span className={`font-bold text-lg ${reading.stable ? "text-green-600" : "text-yellow-600"}`}>
+                    {reading.stable ? "" : "~"}
                     {reading.weight.toFixed(1)} kg
                   </span>
-                  {reading.animalId && <span className="text-sm text-gray-600">ID: {reading.animalId}</span>}
-                  <span className="text-xs text-gray-500">{reading.timestamp.toLocaleTimeString()}</span>
+                  {reading.animalId && <span className="text-sm text-muted-foreground">ID: {reading.animalId}</span>}
+                  <span className="text-sm text-muted-foreground">{reading.timestamp.toLocaleTimeString()}</span>
                 </div>
               ))}
             </div>
