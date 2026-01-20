@@ -62,7 +62,11 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/relatorios") ||
     request.nextUrl.pathname.startsWith("/alertas") ||
     request.nextUrl.pathname.startsWith("/curral") ||
-    request.nextUrl.pathname.startsWith("/consulta-balanca")
+    request.nextUrl.pathname.startsWith("/consulta-balanca") ||
+    request.nextUrl.pathname.startsWith("/mapeamento") ||
+    request.nextUrl.pathname.startsWith("/configuracoes") ||
+    request.nextUrl.pathname.startsWith("/importar") ||
+    request.nextUrl.pathname.startsWith("/exportar")
 
   if (!isPublicPath && !user) {
     // no user, potentially respond by redirecting the user to the login page
