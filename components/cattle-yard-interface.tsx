@@ -141,7 +141,13 @@ export function CattleYardInterface() {
     setIsConnecting(false)
 
     if (!success) {
-      alert("Falha na conexão com a balança. Verifique se ela está ligada e conectada via USB.")
+      alert(
+        "Balanca nao encontrada.\n\n" +
+        "Para conectar a balanca XR5000:\n" +
+        "1. Va para o menu 'Comunicacao'\n" +
+        "2. Conecte via Bluetooth ou porta serial\n" +
+        "3. Volte ao Curral - a conexao sera compartilhada automaticamente"
+      )
     }
   }
 
@@ -247,11 +253,22 @@ export function CattleYardInterface() {
                 </Button>
               </div>
 
-              {scaleConnected && (
+              {scaleConnected ? (
                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-800">
                     <Usb className="h-4 w-4 inline mr-1" />
-                    Balança conectada - A identificação do animal será feita automaticamente quando pesado
+                    Balanca conectada - A identificacao do animal sera feita automaticamente quando pesado
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    <Settings className="h-4 w-4 inline mr-1" />
+                    Balanca desconectada - Para receber dados automaticos, conecte primeiro via{" "}
+                    <Link href="/comunicacao" className="underline font-medium">
+                      menu Comunicacao
+                    </Link>
+                    {" "}(Bluetooth ou Serial)
                   </p>
                 </div>
               )}

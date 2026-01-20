@@ -171,9 +171,10 @@ export function ScaleConnectionProvider({ children }: { children: ReactNode }) {
 
   const connectToScale = async (): Promise<boolean> => {
     try {
-      console.log("[v0] Attempting real connection to scale...")
+      console.log("[v0] Attempting connection to scale...")
       setConnectionStatus("Conectando...")
 
+      // Check if we have recent scale data (received via communication interface)
       const lastDataTime = localStorage.getItem("lastScaleDataTime")
       const now = Date.now()
       const thirtySecondsAgo = now - 30 * 1000
@@ -187,36 +188,43 @@ export function ScaleConnectionProvider({ children }: { children: ReactNode }) {
         return true
       }
 
-      console.log("[v0] Attempting XR5000 connection via USB/ADI interface...")
+      console.log("[v0] Attempting direct XR5000 connection via HTTP from browser...")
 
-      try {
-        const proxyUrl = `/api/xr5000-proxy?url=${encodeURIComponent("http://192.168.7.1:9000")}&endpoint=${encodeURIComponent("/api/v1/devices")}`
+      // Try direct connection from browser to local XR5000 (not via server proxy)
+      const testEndpoints = [
+        "http://192.168.7.1:9000/api/v1/sessions",
+        "http://192.168.7.1:9000/",
+      ]
 
-        const response = await fetch(proxyUrl, {
-          method: "GET",
-          signal: AbortSignal.timeout(8000),
-        })
+      for (const endpoint of testEndpoints) {
+        try {
+          console.log(`[v0] Testing direct connection to: ${endpoint}`)
+          const response = await fetch(endpoint, {
+            method: "GET",
+            headers: {
+              Accept: "application/xml, text/xml, application/json, text/html, */*",
+            },
+            mode: "cors",
+            signal: AbortSignal.timeout(5000),
+          })
 
-        const result = await response.json()
-
-        if (result.success) {
-          console.log("[v0] XR5000 detected via USB ADI interface (proxy)")
-          setIsConnected(true)
-          setConnectionStatus("Conectada - XR5000 USB")
-          localStorage.setItem("scaleConnected", "true")
-          localStorage.setItem("scaleConnectionStatus", "Conectada - XR5000 USB")
-          return true
-        } else {
-          console.log("[v0] XR5000 USB connection failed via proxy:", result.error)
+          if (response.ok || response.status === 200) {
+            console.log("[v0] XR5000 detected via direct HTTP connection")
+            setIsConnected(true)
+            setConnectionStatus("Conectada - XR5000 HTTP")
+            localStorage.setItem("scaleConnected", "true")
+            localStorage.setItem("scaleConnectionStatus", "Conectada - XR5000 HTTP")
+            return true
+          }
+        } catch (error) {
+          console.log(`[v0] Direct connection to ${endpoint} failed:`, error)
         }
-      } catch (error) {
-        console.log("[v0] XR5000 USB connection failed:", error)
       }
 
-      console.log("[v0] Direct connection failed - monitoring for scale data events...")
-      setConnectionStatus("Aguardando dados da balança...")
+      console.log("[v0] Direct HTTP connection failed - waiting for Bluetooth/Serial data events...")
+      setConnectionStatus("Aguardando conexao Bluetooth/Serial...")
 
-      // Set up a timeout to check for incoming data
+      // Wait for scale data events from the communication interface (Bluetooth/Serial)
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
           const recentDataTime = localStorage.getItem("lastScaleDataTime")
@@ -224,18 +232,18 @@ export function ScaleConnectionProvider({ children }: { children: ReactNode }) {
           const fiveSecondsAgo = checkTime - 5000
 
           if (recentDataTime && Number.parseInt(recentDataTime) > fiveSecondsAgo) {
-            console.log("[v0] Scale data received during connection attempt - connection successful")
+            console.log("[v0] Scale data received during connection attempt - success")
             setIsConnected(true)
             setConnectionStatus("Conectada - XR5000 Ativa")
             localStorage.setItem("scaleConnected", "true")
             localStorage.setItem("scaleConnectionStatus", "Conectada - XR5000 Ativa")
             resolve(true)
           } else {
-            console.log("[v0] No scale data received - connection failed")
-            setConnectionStatus("Balança XR5000 não encontrada")
+            console.log("[v0] No scale data received - please connect via Communication module first")
+            setConnectionStatus("Use o modulo Comunicacao para conectar")
             resolve(false)
           }
-        }, 5000) // Wait 5 seconds for scale data to arrive
+        }, 5000)
 
         const handleConnectionData = (event: CustomEvent<ScaleData>) => {
           console.log("[v0] Scale data received during connection - immediate success")
@@ -252,7 +260,7 @@ export function ScaleConnectionProvider({ children }: { children: ReactNode }) {
       })
     } catch (error) {
       console.error("[v0] Connection error:", error)
-      setConnectionStatus("Erro na conexão")
+      setConnectionStatus("Erro na conexao")
       return false
     }
   }
