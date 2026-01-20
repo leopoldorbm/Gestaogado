@@ -5,351 +5,174 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { AlertCircle, Copy, Play, Settings, Database, Users, Heart, Star } from "lucide-react"
+import { Copy, Play, Settings, Scale, Info, Zap, AlertTriangle } from "lucide-react"
 
-interface APIEndpoint {
-  method: "GET" | "POST" | "PUT" | "DELETE"
-  path: string
+// SCP Commands based on XR5000/SR3000 Protocol Documentation
+interface SCPCommand {
+  command: string
   description: string
   category: string
-  parameters?: { name: string; type: string; required: boolean; description: string }[]
-  example?: string
+  response: string
 }
 
-const API_ENDPOINTS: APIEndpoint[] = [
-  // Sessions
-  { method: "GET", path: "/sessions", description: "Retrieves session information", category: "Sessions" },
-  { method: "POST", path: "/sessions", description: "Creates new sessions", category: "Sessions" },
-  { method: "PUT", path: "/sessions", description: "Overwrites existing sessions", category: "Sessions" },
-  { method: "DELETE", path: "/sessions", description: "Deletes existing sessions", category: "Sessions" },
-  { method: "GET", path: "/sessions/{id}", description: "Retrieves a specific session", category: "Sessions" },
-  { method: "PUT", path: "/sessions/{id}", description: "Overwrites a specific session", category: "Sessions" },
-  { method: "DELETE", path: "/sessions/{id}", description: "Deletes a specific session", category: "Sessions" },
-  { method: "POST", path: "/merge/sessions", description: "Updates a session", category: "Sessions" },
-
-  // Animals
-  { method: "GET", path: "/animals", description: "Retrieves all animal data", category: "Animals" },
-  { method: "POST", path: "/animals", description: "Create new animals", category: "Animals" },
-  { method: "PUT", path: "/animals", description: "Overwrites animal information", category: "Animals" },
-  { method: "DELETE", path: "/animals", description: "Deletes animals", category: "Animals" },
-  {
-    method: "GET",
-    path: "/animals/{idType}/{id}",
-    description: "Retrieves animal information by ID field",
-    category: "Animals",
-  },
-  {
-    method: "PUT",
-    path: "/animals/{idType}/{id}",
-    description: "Overwrite an animal by using specified ID field",
-    category: "Animals",
-  },
-  {
-    method: "DELETE",
-    path: "/animals/{idType}/{id}",
-    description: "Deletes an animal using its ID field",
-    category: "Animals",
-  },
-  { method: "POST", path: "/merge/animals", description: "Update an existing animal", category: "Animals" },
-  {
-    method: "POST",
-    path: "/merge/animals/{idType}/{id}",
-    description: "Update an animal by using specified ID field",
-    category: "Animals",
-  },
-
-  // Traits
-  { method: "GET", path: "/traits", description: "Retrieves all trait information", category: "Traits" },
-  { method: "POST", path: "/traits", description: "Creates new traits", category: "Traits" },
-  { method: "PUT", path: "/traits", description: "Overwrites existing traits", category: "Traits" },
-  { method: "DELETE", path: "/traits", description: "Delete a trait", category: "Traits" },
-  {
-    method: "GET",
-    path: "/traits/{traitname}",
-    description: "Retrieve information about a named trait",
-    category: "Traits",
-  },
-  { method: "PUT", path: "/traits/{traitname}", description: "Overwrite named trait", category: "Traits" },
-  { method: "DELETE", path: "/traits/{traitname}", description: "Delete a named trait", category: "Traits" },
-  { method: "POST", path: "/merge/traits", description: "Update existing traits", category: "Traits" },
-  { method: "POST", path: "/merge/traits/{traitname}", description: "Update existing trait", category: "Traits" },
-
-  // Treatments
-  { method: "GET", path: "/treatments", description: "Gets all treatment information", category: "Treatments" },
-  { method: "POST", path: "/treatments", description: "Create a new treatment", category: "Treatments" },
-  { method: "PUT", path: "/treatments", description: "Overwrite existing treatments", category: "Treatments" },
-  { method: "DELETE", path: "/treatments", description: "Deletes treatments", category: "Treatments" },
-  { method: "POST", path: "/merge/treatments", description: "Update an existing treatment", category: "Treatments" },
-
-  // Settings
-  { method: "GET", path: "/settings", description: "Retrieves settings from indicator", category: "Settings" },
-  {
-    method: "POST",
-    path: "/settings",
-    description: "Allows various settings in the indicator to be modified",
-    category: "Settings",
-  },
-
-  // System
-  { method: "GET", path: "/polaris", description: "Retrieves basic information about indicator", category: "System" },
-  {
-    method: "GET",
-    path: "/events",
-    description: "Polls the indicators for events that have happened",
-    category: "System",
-  },
-  { method: "POST", path: "/heartbeat", description: "Informs indicator of client name", category: "System" },
-  { method: "POST", path: "/restart", description: "Restarts or suspends the indicator", category: "System" },
-  {
-    method: "POST",
-    path: "/demomode",
-    description: "Replaces indicator database with sample data",
-    category: "System",
-  },
-
-  // Users
-  {
-    method: "GET",
-    path: "/users",
-    description: "Returns all user names and roles and associated permissions",
-    category: "Users",
-  },
-  {
-    method: "POST",
-    path: "/users",
-    description: "Returns all user names and roles and associated permissions",
-    category: "Users",
-  },
-
-  // Favourites
-  { method: "GET", path: "/favourites", description: "Retrieves list of available favourites", category: "Favourites" },
-  {
-    method: "GET",
-    path: "/favourites/{filename}",
-    description: "Retrieves a specified favourite",
-    category: "Favourites",
-  },
-  {
-    method: "POST",
-    path: "/favourites/{filename}",
-    description: "Creates a favourite on the indicator",
-    category: "Favourites",
-  },
-
-  // Field Order
-  {
-    method: "GET",
-    path: "/fieldorder/{id}",
-    description: "Retrieves all trait information for a session",
-    category: "Field Order",
-  },
+const SCP_COMMANDS: SCPCommand[] = [
+  // Weight Commands
+  { command: "{RW}", description: "Ler peso atual da balanca", category: "Peso", response: "[peso] ou [Upeso] se instavel" },
+  { command: "{RI}", description: "Ler peso e ID do animal atual", category: "Peso", response: "[peso,id]" },
+  { command: "{RD}", description: "Ler dados completos do registro atual", category: "Peso", response: "[dados]" },
+  
+  // System Commands
+  { command: "{ZA1}", description: "Ativar acknowledgements (resposta ^)", category: "Sistema", response: "^" },
+  { command: "{ZA0}", description: "Desativar acknowledgements", category: "Sistema", response: "^" },
+  { command: "{ZE1}", description: "Ativar codigos de erro", category: "Sistema", response: "^" },
+  { command: "{ZE0}", description: "Desativar codigos de erro", category: "Sistema", response: "^" },
+  { command: "{ZC1}", description: "Ativar CR/LF nas respostas", category: "Sistema", response: "^" },
+  { command: "{ZC0}", description: "Desativar CR/LF nas respostas", category: "Sistema", response: "^" },
+  { command: "{ZN}", description: "Retorna nome do modelo (3000)", category: "Sistema", response: "[3000]" },
+  { command: "{VM}", description: "Retorna numero do modelo (8=SR, 13=XR)", category: "Sistema", response: "[modelo]" },
+  { command: "{VV}", description: "Retorna versao do software", category: "Sistema", response: "[versao]" },
+  { command: "{VS}", description: "Retorna numero de serie", category: "Sistema", response: "[serial]" },
+  
+  // Configuration Commands
+  { command: "{SB9600}", description: "Configurar baud rate para 9600", category: "Configuracao", response: "^" },
+  { command: "{SB38400}", description: "Configurar baud rate para 38400", category: "Configuracao", response: "^" },
+  
+  // Data Commands
+  { command: "{RN}", description: "Ler numero de registros na sessao atual", category: "Dados", response: "[numero]" },
+  { command: "{RS}", description: "Ler nome da sessao atual", category: "Dados", response: "[nome]" },
+  { command: "{RT}", description: "Ler data/hora atual do indicador", category: "Dados", response: "[data/hora]" },
 ]
 
-const CATEGORIES = [
-  "All",
-  "Sessions",
-  "Animals",
-  "Traits",
-  "Treatments",
-  "Settings",
-  "System",
-  "Users",
-  "Favourites",
-  "Field Order",
-]
+const CATEGORIES = ["Todos", "Peso", "Sistema", "Configuracao", "Dados"]
 
-const METHOD_COLORS = {
-  GET: "bg-green-100 text-green-800",
-  POST: "bg-blue-100 text-blue-800",
-  PUT: "bg-yellow-100 text-yellow-800",
-  DELETE: "bg-red-100 text-red-800",
-}
-
-const CATEGORY_ICONS = {
-  Sessions: Database,
-  Animals: Heart,
-  Traits: Settings,
-  Treatments: AlertCircle,
-  Settings: Settings,
-  System: Settings,
-  Users: Users,
-  Favourites: Star,
-  "Field Order": Database,
+const CATEGORY_ICONS: Record<string, typeof Scale> = {
+  Peso: Scale,
+  Sistema: Settings,
+  Configuracao: Zap,
+  Dados: Info,
 }
 
 export function XR5000QueryInterface() {
-  const [selectedCategory, setSelectedCategory] = useState("All")
-  const [selectedEndpoint, setSelectedEndpoint] = useState<APIEndpoint | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState("Todos")
+  const [selectedCommand, setSelectedCommand] = useState<SCPCommand | null>(null)
   const [baseUrl, setBaseUrl] = useState("http://192.168.7.1:9000")
-  const [requestBody, setRequestBody] = useState("")
-  const [pathParams, setPathParams] = useState<Record<string, string>>({})
-  const [queryParams, setQueryParams] = useState<Record<string, string>>({})
+  const [customCommand, setCustomCommand] = useState("")
   const [response, setResponse] = useState("")
   const [loading, setLoading] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connected" | "error">("disconnected")
 
-  const filteredEndpoints =
-    selectedCategory === "All"
-      ? API_ENDPOINTS
-      : API_ENDPOINTS.filter((endpoint) => endpoint.category === selectedCategory)
-
-  // Make direct request to XR5000 from browser (required for local network access)
-  const makeDirectRequest = async (endpoint: string, method: string = "GET", body?: string) => {
-    // The endpoints in API_ENDPOINTS are already correctly formatted
-    // They should be prefixed with /api/v1 as per the ADI REST API specification
-    let apiEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
-    
-    // Add /api/v1 prefix only if not already present
-    if (!apiEndpoint.startsWith("/api/v1")) {
-      apiEndpoint = `/api/v1${apiEndpoint}`
-    }
-
-    const fullUrl = `${baseUrl}${apiEndpoint}`
-    console.log(`[v0] XR5000 Direct: Attempting ${method} to ${fullUrl}`)
-
-    const fetchOptions: RequestInit = {
-      method: method,
-      headers: {
-        Accept: "application/xml, text/xml, application/json, */*",
-        "Content-Type": "application/xml",
-      },
-      mode: "cors",
-    }
-
-    if (body && (method === "POST" || method === "PUT")) {
-      fetchOptions.body = body
-    }
-
-    const response = await fetch(fullUrl, fetchOptions)
-    return response
-  }
+  const filteredCommands =
+    selectedCategory === "Todos"
+      ? SCP_COMMANDS
+      : SCP_COMMANDS.filter((cmd) => cmd.category === selectedCategory)
 
   const testConnection = async () => {
     setLoading(true)
     setResponse("")
     try {
-      // Try multiple endpoints to find one that works
-      const testEndpoints = [
-        { url: `${baseUrl}/api/v1/sessions`, name: "Sessions API" },
-        { url: `${baseUrl}/api/v1/polaris`, name: "Polaris API" },
-        { url: `${baseUrl}/`, name: "Root (Swagger)" },
-      ]
+      // Test connection to root URL (Swagger page)
+      const response = await fetch(`${baseUrl}/`, {
+        method: "GET",
+        headers: {
+          Accept: "text/html, application/xml, */*",
+        },
+        mode: "cors",
+      })
 
-      let connected = false
-      let lastError = ""
-
-      for (const endpoint of testEndpoints) {
-        try {
-          console.log(`[v0] Testing connection to: ${endpoint.url}`)
-          const response = await fetch(endpoint.url, {
-            method: "GET",
-            headers: {
-              Accept: "application/xml, text/xml, application/json, text/html, */*",
-            },
-            mode: "cors",
-          })
-
-          if (response.ok || response.status === 200) {
-            setConnectionStatus("connected")
-            const data = await response.text()
-            setResponse(`Conexão bem-sucedida via ${endpoint.name}!\n\nURL: ${endpoint.url}\n\n${data.substring(0, 500)}${data.length > 500 ? "..." : ""}`)
-            connected = true
-            break
-          } else {
-            lastError = `${endpoint.name}: HTTP ${response.status}`
-          }
-        } catch (e) {
-          lastError = `${endpoint.name}: ${e instanceof Error ? e.message : "Erro"}`
-          console.log(`[v0] Failed to connect to ${endpoint.url}:`, e)
-        }
-      }
-
-      if (!connected) {
+      if (response.ok) {
+        setConnectionStatus("connected")
+        const data = await response.text()
+        setResponse(`Conexao bem-sucedida!\n\nURL: ${baseUrl}\n\nA XR5000 esta acessivel.\n\n${data.substring(0, 300)}...`)
+      } else {
         setConnectionStatus("error")
-        setResponse(
-          `Erro de conexão: Não foi possível conectar à XR5000 em ${baseUrl}\n\n` +
-          `Último erro: ${lastError}\n\n` +
-          `Possíveis causas:\n` +
-          `1. A balança não está ligada ou conectada\n` +
-          `2. O IP ou porta estão incorretos\n` +
-          `3. CORS está bloqueando a requisição do navegador web\n\n` +
-          `Dica: Verifique se consegue acessar ${baseUrl} diretamente no navegador.`
-        )
+        setResponse(`Erro HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (error) {
       setConnectionStatus("error")
-      setResponse(`Erro de rede: ${error}`)
+      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+        setResponse(
+          `Erro de conexao: Nao foi possivel conectar a XR5000 em ${baseUrl}\n\n` +
+          `Possiveis causas:\n` +
+          `1. A balanca nao esta ligada ou conectada\n` +
+          `2. O IP ou porta estao incorretos\n` +
+          `3. CORS esta bloqueando a requisicao do navegador\n\n` +
+          `IMPORTANTE: Os comandos SCP (como {RW}) funcionam via comunicacao SERIAL,\n` +
+          `nao via HTTP. Para usar comandos SCP, voce precisa:\n` +
+          `- Conectar via porta serial (COM) ou Bluetooth\n` +
+          `- Usar o modulo de Comunicacao com a Balanca\n\n` +
+          `A API REST (HTTP) da XR5000 tem endpoints limitados.`
+        )
+      } else {
+        setResponse(`Erro de rede: ${error}`)
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  const executeQuery = async () => {
-    if (!selectedEndpoint) return
+  const executeCommand = async () => {
+    const commandToSend = customCommand || selectedCommand?.command
+    if (!commandToSend) return
 
     setLoading(true)
     setResponse("")
-    try {
-      let endpoint = selectedEndpoint.path
-
-      // Replace path parameters
-      Object.entries(pathParams).forEach(([key, value]) => {
-        endpoint = endpoint.replace(`{${key}}`, value)
-      })
-
-      // Add query parameters
-      const queryString = Object.entries(queryParams)
-        .filter(([_, value]) => value)
-        .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-        .join("&")
-
-      if (queryString) {
-        endpoint += `?${queryString}`
-      }
-
-      const response = await makeDirectRequest(endpoint, selectedEndpoint.method, requestBody || undefined)
-      const data = await response.text()
-      
-      if (response.ok) {
-        setResponse(data)
-      } else {
-        setResponse(`Erro HTTP ${response.status}: ${response.statusText}\n\n${data}`)
-      }
-    } catch (error) {
-      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
-        setResponse(
-          `Erro de conexão: Não foi possível executar a consulta.\n\n` +
-          `A XR5000 pode estar bloqueando requisições CORS do navegador.\n` +
-          `Verifique se a conexão está ativa e tente novamente.`
-        )
-      } else {
-        setResponse(`Erro: ${error}`)
-      }
-    } finally {
-      setLoading(false)
-    }
+    
+    // SCP commands are for SERIAL communication, not HTTP
+    // Show informative message
+    setResponse(
+      `Comando SCP: ${commandToSend}\n\n` +
+      `NOTA IMPORTANTE:\n` +
+      `Os comandos SCP (Serial Communications Protocol) como ${commandToSend}\n` +
+      `funcionam via comunicacao SERIAL (porta COM ou Bluetooth),\n` +
+      `NAO via HTTP/REST API.\n\n` +
+      `Para executar comandos SCP:\n` +
+      `1. Va para o menu "Comunicacao" do sistema\n` +
+      `2. Conecte a balanca via Bluetooth ou porta serial\n` +
+      `3. Use a interface de comunicacao para enviar comandos\n\n` +
+      `Resposta esperada para ${commandToSend}:\n` +
+      `${selectedCommand?.response || "Depende do comando"}\n\n` +
+      `A API HTTP da XR5000 (porta 9000) mostra apenas a documentacao Swagger\n` +
+      `e pode ter endpoints REST limitados dependendo do modelo.`
+    )
+    
+    setLoading(false)
   }
 
   const copyResponse = () => {
     navigator.clipboard.writeText(response)
   }
 
-  const getPathParams = (path: string) => {
-    const matches = path.match(/\{([^}]+)\}/g)
-    return matches ? matches.map((match) => match.slice(1, -1)) : []
-  }
-
   return (
     <div className="space-y-6">
+      {/* Important Notice */}
+      <Card className="border-yellow-300 bg-yellow-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-yellow-800">
+            <AlertTriangle className="h-5 w-5" />
+            Informacao Importante
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-yellow-800">
+          <p className="mb-2">
+            A XR5000 utiliza dois protocolos de comunicacao diferentes:
+          </p>
+          <ul className="list-disc list-inside space-y-1 text-sm">
+            <li><strong>SCP (Serial Communications Protocol)</strong> - Via porta serial/Bluetooth para comandos como {"{RW}"}, {"{ZA1}"}, etc.</li>
+            <li><strong>REST API (HTTP)</strong> - Via rede para acesso a documentacao e alguns endpoints limitados</li>
+          </ul>
+          <p className="mt-2 text-sm">
+            Para ler peso em tempo real, use o <strong>modulo de Comunicacao</strong> via Bluetooth ou porta serial.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Connection Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            Configuração de Conexão
+            Teste de Conexao HTTP
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -364,7 +187,7 @@ export function XR5000QueryInterface() {
               />
             </div>
             <Button onClick={testConnection} disabled={loading}>
-              {loading ? "Testando..." : "Testar Conexão"}
+              {loading ? "Testando..." : "Testar Conexao"}
             </Button>
           </div>
 
@@ -380,9 +203,9 @@ export function XR5000QueryInterface() {
             />
             <span className="text-sm">
               {connectionStatus === "connected"
-                ? "Conectado"
+                ? "Conectado (HTTP)"
                 : connectionStatus === "error"
-                  ? "Erro de conexão"
+                  ? "Erro de conexao"
                   : "Desconectado"}
             </span>
           </div>
@@ -390,141 +213,102 @@ export function XR5000QueryInterface() {
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* API Explorer */}
+        {/* SCP Commands Reference */}
         <Card>
           <CardHeader>
-            <CardTitle>Explorador de API</CardTitle>
-            <CardDescription>Selecione uma categoria e endpoint para executar consultas na XR5000</CardDescription>
+            <CardTitle>Referencia de Comandos SCP</CardTitle>
+            <CardDescription>Comandos disponiveis para comunicacao serial com a XR5000</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={selectedCategory} onValueChange={setSelectedCategory}>
-              <TabsList className="grid grid-cols-3 lg:grid-cols-5 mb-4">
-                {CATEGORIES.slice(0, 5).map((category) => (
-                  <TabsTrigger key={category} value={category} className="text-xs">
-                    {category}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {CATEGORIES.map((category) => (
+                <Button
+                  key={category}
+                  variant={selectedCategory === category ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCategory(category)}
+                >
+                  {category}
+                </Button>
+              ))}
+            </div>
 
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {filteredEndpoints.map((endpoint, index) => {
-                  const IconComponent = CATEGORY_ICONS[endpoint.category as keyof typeof CATEGORY_ICONS] || Database
-                  return (
-                    <div
-                      key={index}
-                      className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
-                        selectedEndpoint === endpoint ? "border-blue-500 bg-blue-50" : "border-gray-200"
-                      }`}
-                      onClick={() => setSelectedEndpoint(endpoint)}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <IconComponent className="h-4 w-4" />
-                        <Badge className={METHOD_COLORS[endpoint.method]}>{endpoint.method}</Badge>
-                        <code className="text-sm font-mono">{endpoint.path}</code>
-                      </div>
-                      <p className="text-sm text-gray-600">{endpoint.description}</p>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {filteredCommands.map((cmd, index) => {
+                const IconComponent = CATEGORY_ICONS[cmd.category] || Info
+                return (
+                  <div
+                    key={index}
+                    className={`p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
+                      selectedCommand === cmd ? "border-blue-500 bg-blue-50" : "border-gray-200"
+                    }`}
+                    onClick={() => {
+                      setSelectedCommand(cmd)
+                      setCustomCommand(cmd.command)
+                    }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <IconComponent className="h-4 w-4" />
+                      <Badge variant="secondary">{cmd.category}</Badge>
+                      <code className="text-sm font-mono font-bold">{cmd.command}</code>
                     </div>
-                  )
-                })}
-              </div>
-            </Tabs>
+                    <p className="text-sm text-gray-600">{cmd.description}</p>
+                    <p className="text-xs text-gray-400 mt-1">Resposta: {cmd.response}</p>
+                  </div>
+                )
+              })}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Query Builder */}
+        {/* Command Tester */}
         <Card>
           <CardHeader>
-            <CardTitle>Construtor de Consulta</CardTitle>
-            <CardDescription>Configure os parâmetros para a consulta selecionada</CardDescription>
+            <CardTitle>Informacoes do Comando</CardTitle>
+            <CardDescription>Selecione um comando para ver detalhes</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {selectedEndpoint ? (
-              <>
+            <div>
+              <Label htmlFor="customCommand">Comando SCP</Label>
+              <Input
+                id="customCommand"
+                value={customCommand}
+                onChange={(e) => setCustomCommand(e.target.value)}
+                placeholder="Ex: {RW}"
+                className="font-mono"
+              />
+            </div>
+
+            {selectedCommand && (
+              <div className="p-4 bg-gray-50 rounded-lg space-y-2">
                 <div>
-                  <Label>Endpoint Selecionado</Label>
-                  <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                    <Badge className={METHOD_COLORS[selectedEndpoint.method]}>{selectedEndpoint.method}</Badge>
-                    <code className="text-sm">{selectedEndpoint.path}</code>
-                  </div>
+                  <span className="text-sm font-medium">Comando:</span>
+                  <code className="ml-2 text-blue-600">{selectedCommand.command}</code>
                 </div>
-
-                {/* Path Parameters */}
-                {getPathParams(selectedEndpoint.path).length > 0 && (
-                  <div>
-                    <Label>Parâmetros de Caminho</Label>
-                    <div className="space-y-2">
-                      {getPathParams(selectedEndpoint.path).map((param) => (
-                        <div key={param}>
-                          <Label htmlFor={param} className="text-sm">
-                            {param}
-                          </Label>
-                          <Input
-                            id={param}
-                            value={pathParams[param] || ""}
-                            onChange={(e) =>
-                              setPathParams((prev) => ({
-                                ...prev,
-                                [param]: e.target.value,
-                              }))
-                            }
-                            placeholder={`Valor para ${param}`}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Query Parameters */}
                 <div>
-                  <Label>Parâmetros de Consulta (Opcionais)</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      placeholder="count"
-                      value={queryParams.count || ""}
-                      onChange={(e) =>
-                        setQueryParams((prev) => ({
-                          ...prev,
-                          count: e.target.value,
-                        }))
-                      }
-                    />
-                    <Input
-                      placeholder="fromDate"
-                      value={queryParams.fromDate || ""}
-                      onChange={(e) =>
-                        setQueryParams((prev) => ({
-                          ...prev,
-                          fromDate: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
+                  <span className="text-sm font-medium">Descricao:</span>
+                  <span className="ml-2 text-sm">{selectedCommand.description}</span>
                 </div>
-
-                {/* Request Body */}
-                {["POST", "PUT"].includes(selectedEndpoint.method) && (
-                  <div>
-                    <Label htmlFor="requestBody">Corpo da Requisição (XML)</Label>
-                    <Textarea
-                      id="requestBody"
-                      value={requestBody}
-                      onChange={(e) => setRequestBody(e.target.value)}
-                      placeholder="Cole aqui o XML da requisição..."
-                      rows={6}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                )}
-
-                <Button onClick={executeQuery} disabled={loading} className="w-full">
-                  <Play className="h-4 w-4 mr-2" />
-                  {loading ? "Executando..." : "Executar Consulta"}
-                </Button>
-              </>
-            ) : (
-              <div className="text-center text-gray-500 py-8">Selecione um endpoint para configurar a consulta</div>
+                <div>
+                  <span className="text-sm font-medium">Resposta esperada:</span>
+                  <code className="ml-2 text-green-600">{selectedCommand.response}</code>
+                </div>
+                <div>
+                  <span className="text-sm font-medium">Categoria:</span>
+                  <Badge variant="outline" className="ml-2">{selectedCommand.category}</Badge>
+                </div>
+              </div>
             )}
+
+            <Button onClick={executeCommand} disabled={loading || !customCommand} className="w-full">
+              <Play className="h-4 w-4 mr-2" />
+              Ver Informacoes
+            </Button>
+
+            <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
+              <strong>Nota:</strong> Para executar comandos SCP na balanca, use o modulo de Comunicacao 
+              via Bluetooth ou porta serial. Esta interface serve como referencia dos comandos disponiveis.
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -534,7 +318,7 @@ export function XR5000QueryInterface() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Resposta</CardTitle>
+              <CardTitle>Resposta / Informacoes</CardTitle>
               <Button variant="outline" size="sm" onClick={copyResponse}>
                 <Copy className="h-4 w-4 mr-2" />
                 Copiar
@@ -542,7 +326,7 @@ export function XR5000QueryInterface() {
             </div>
           </CardHeader>
           <CardContent>
-            <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm">{response}</pre>
+            <pre className="bg-gray-50 p-4 rounded-lg overflow-x-auto text-sm whitespace-pre-wrap">{response}</pre>
           </CardContent>
         </Card>
       )}
