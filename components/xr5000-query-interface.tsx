@@ -198,10 +198,13 @@ export function XR5000QueryInterface() {
 
   // Make direct request to XR5000 from browser (required for local network access)
   const makeDirectRequest = async (endpoint: string, method: string = "GET", body?: string) => {
-    // Ensure endpoint starts with /api/v1 for ADI API
-    let apiEndpoint = endpoint
-    if (endpoint && !endpoint.startsWith("/api/v1") && !endpoint.startsWith("http")) {
-      apiEndpoint = `/api/v1${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`
+    // The endpoints in API_ENDPOINTS are already correctly formatted
+    // They should be prefixed with /api/v1 as per the ADI REST API specification
+    let apiEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`
+    
+    // Add /api/v1 prefix only if not already present
+    if (!apiEndpoint.startsWith("/api/v1")) {
+      apiEndpoint = `/api/v1${apiEndpoint}`
     }
 
     const fullUrl = `${baseUrl}${apiEndpoint}`
@@ -228,32 +231,57 @@ export function XR5000QueryInterface() {
     setLoading(true)
     setResponse("")
     try {
-      // Try direct connection from browser to local XR5000
-      const response = await makeDirectRequest("/polaris", "GET")
+      // Try multiple endpoints to find one that works
+      const testEndpoints = [
+        { url: `${baseUrl}/api/v1/sessions`, name: "Sessions API" },
+        { url: `${baseUrl}/api/v1/polaris`, name: "Polaris API" },
+        { url: `${baseUrl}/`, name: "Root (Swagger)" },
+      ]
 
-      if (response.ok) {
-        setConnectionStatus("connected")
-        const data = await response.text()
-        setResponse(`Conexão bem-sucedida!\n\n${data}`)
-      } else {
-        setConnectionStatus("error")
-        const errorText = await response.text()
-        setResponse(`Erro HTTP ${response.status}: ${response.statusText}\n\n${errorText}`)
+      let connected = false
+      let lastError = ""
+
+      for (const endpoint of testEndpoints) {
+        try {
+          console.log(`[v0] Testing connection to: ${endpoint.url}`)
+          const response = await fetch(endpoint.url, {
+            method: "GET",
+            headers: {
+              Accept: "application/xml, text/xml, application/json, text/html, */*",
+            },
+            mode: "cors",
+          })
+
+          if (response.ok || response.status === 200) {
+            setConnectionStatus("connected")
+            const data = await response.text()
+            setResponse(`Conexão bem-sucedida via ${endpoint.name}!\n\nURL: ${endpoint.url}\n\n${data.substring(0, 500)}${data.length > 500 ? "..." : ""}`)
+            connected = true
+            break
+          } else {
+            lastError = `${endpoint.name}: HTTP ${response.status}`
+          }
+        } catch (e) {
+          lastError = `${endpoint.name}: ${e instanceof Error ? e.message : "Erro"}`
+          console.log(`[v0] Failed to connect to ${endpoint.url}:`, e)
+        }
       }
-    } catch (error) {
-      setConnectionStatus("error")
-      if (error instanceof TypeError && error.message.includes("Failed to fetch")) {
+
+      if (!connected) {
+        setConnectionStatus("error")
         setResponse(
           `Erro de conexão: Não foi possível conectar à XR5000 em ${baseUrl}\n\n` +
+          `Último erro: ${lastError}\n\n` +
           `Possíveis causas:\n` +
           `1. A balança não está ligada ou conectada\n` +
           `2. O IP ou porta estão incorretos\n` +
-          `3. CORS está bloqueando a requisição (a XR5000 pode não permitir requisições do navegador)\n\n` +
+          `3. CORS está bloqueando a requisição do navegador web\n\n` +
           `Dica: Verifique se consegue acessar ${baseUrl} diretamente no navegador.`
         )
-      } else {
-        setResponse(`Erro de rede: ${error}`)
       }
+    } catch (error) {
+      setConnectionStatus("error")
+      setResponse(`Erro de rede: ${error}`)
     } finally {
       setLoading(false)
     }
