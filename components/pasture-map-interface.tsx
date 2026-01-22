@@ -139,21 +139,38 @@ export default function PastureMapInterface() {
   const loadData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.log("[v0] No user found in pasture map")
+        return
+      }
 
       // Load pastures
       let pasturesQuery = supabase.from("pastos").select("*")
       if (selectedFarm) {
         pasturesQuery = pasturesQuery.eq("fazenda_id", selectedFarm)
       }
-      const { data: pasturesData } = await pasturesQuery
+      const { data: pasturesData, error: pasturesError } = await pasturesQuery
+      console.log("[v0] Pastures loaded:", pasturesData?.length || 0, pasturesError)
 
-      // Load lotes
-      let lotesQuery = supabase.from("lotes").select("id, nome, quantidade, fazenda_id")
+      // Load lotes with animal count
+      let lotesQuery = supabase.from("lotes").select("id, nome, fazenda_id, capacidade_animais")
       if (selectedFarm) {
         lotesQuery = lotesQuery.eq("fazenda_id", selectedFarm)
       }
-      const { data: lotesData } = await lotesQuery
+      const { data: lotesData, error: lotesError } = await lotesQuery
+      console.log("[v0] Lotes loaded:", lotesData?.length || 0, lotesData, lotesError)
+
+      // Count animals for each lote
+      const lotesWithCount = await Promise.all(
+        (lotesData || []).map(async (lote) => {
+          const { count } = await supabase
+            .from("gado")
+            .select("*", { count: "exact", head: true })
+            .eq("lote_id", lote.id)
+            .eq("ativo", true)
+          return { ...lote, quantidade: count || 0 }
+        })
+      )
 
       // Load ocupacoes
       const { data: ocupacoesData } = await supabase
@@ -168,7 +185,7 @@ export default function PastureMapInterface() {
         .order("data_aplicacao", { ascending: false })
 
       setPastures(pasturesData || [])
-      setLotes(lotesData || [])
+      setLotes(lotesWithCount || [])
       setOcupacoes(
         (ocupacoesData || []).map((o: any) => ({
           ...o,
@@ -917,18 +934,27 @@ export default function PastureMapInterface() {
           <div className="space-y-4 py-4">
             <div>
               <Label>Lote *</Label>
-              <Select value={ocupacaoForm.lote_id} onValueChange={(v) => setOcupacaoForm({ ...ocupacaoForm, lote_id: v })}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione um lote" />
-                </SelectTrigger>
-                <SelectContent>
-                  {lotes.map((lote) => (
-                    <SelectItem key={lote.id} value={lote.id}>
-                      {lote.nome} ({lote.quantidade} animais)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {lotes.length === 0 ? (
+                <div className="mt-1 p-3 bg-muted/50 rounded-md text-center">
+                  <p className="text-sm text-muted-foreground mb-2">Nenhum lote cadastrado</p>
+                  <a href="/gado/lotes" className="text-sm text-primary hover:underline">
+                    Clique aqui para criar lotes
+                  </a>
+                </div>
+              ) : (
+                <Select value={ocupacaoForm.lote_id} onValueChange={(v) => setOcupacaoForm({ ...ocupacaoForm, lote_id: v })}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione um lote" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lotes.map((lote) => (
+                      <SelectItem key={lote.id} value={lote.id}>
+                        {lote.nome} ({lote.quantidade} animais)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div>
               <Label>Quantidade de Animais *</Label>
