@@ -28,20 +28,37 @@ interface CattleData {
   valor_compra: number | null
   valor_venda: number | null
   ativo: boolean
+  lote_id: string | null
   fazendas: { nome: string } | null
   lotes: { nome: string } | null
   pesagens: { peso: number; data_pesagem: string }[]
 }
 
-interface Fazenda {
+interface Lote {
   id: string
   nome: string
+  fazenda_id: string
+}
+
+interface Pasto {
+  id: string
+  nome: string
+  fazenda_id: string
+}
+
+interface OcupacaoPasto {
+  id: string
+  pasto_id: string
+  lote_id: string
 }
 
 export function CattleManagementInterface() {
   const { toast } = useToast()
   const { selectedFarm, fazendas } = useFarm()
   const [cattle, setCattle] = useState<CattleData[]>([])
+  const [lotes, setLotes] = useState<Lote[]>([])
+  const [pastos, setPastos] = useState<Pasto[]>([])
+  const [ocupacoesPasto, setOcupacoesPasto] = useState<OcupacaoPasto[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedAnimal, setSelectedAnimal] = useState<CattleData | null>(null)
   const [weighingAnimal, setWeighingAnimal] = useState<CattleData | null>(null)
@@ -51,20 +68,22 @@ export function CattleManagementInterface() {
   const [searchTerm, setSearchTerm] = useState("")
   const [sexFilter, setSexFilter] = useState("Todos")
   const [statusFilter, setStatusFilter] = useState("ativo")
+  const [loteFilter, setLoteFilter] = useState("todos")
+  const [pastoFilter, setPastoFilter] = useState("todos")
 
   useEffect(() => {
-    loadCattle()
+    loadData()
   }, [selectedFarm])
 
-  const loadCattle = async () => {
+  const loadData = async () => {
     setLoading(true)
     setConnectionError(null)
-    console.log("[v0] Loading cattle for farm:", selectedFarm)
 
     try {
       const supabase = createClient()
 
-      let query = supabase
+      // Load cattle
+      let cattleQuery = supabase
         .from("gado")
         .select(`
           *,
@@ -74,12 +93,33 @@ export function CattleManagementInterface() {
         `)
         .order("marca_fogo")
 
-      // Apply farm filter if a specific farm is selected
       if (selectedFarm) {
-        query = query.eq("fazenda_id", selectedFarm)
+        cattleQuery = cattleQuery.eq("fazenda_id", selectedFarm)
       }
 
-      const { data, error } = await query
+      const { data: cattleData, error: cattleError } = await cattleQuery
+
+      // Load lotes
+      let lotesQuery = supabase.from("lotes").select("id, nome, fazenda_id")
+      if (selectedFarm) {
+        lotesQuery = lotesQuery.eq("fazenda_id", selectedFarm)
+      }
+      const { data: lotesData } = await lotesQuery
+
+      // Load pastos
+      let pastosQuery = supabase.from("pastos").select("id, nome, fazenda_id")
+      if (selectedFarm) {
+        pastosQuery = pastosQuery.eq("fazenda_id", selectedFarm)
+      }
+      const { data: pastosData } = await pastosQuery
+
+      // Load ocupacoes de pasto ativas
+      const { data: ocupacoesData } = await supabase
+        .from("ocupacao_pastos")
+        .select("id, pasto_id, lote_id")
+        .is("data_saida", null)
+
+      const error = cattleError
 
       if (error) {
         console.error("[v0] Erro ao carregar gado:", error)
@@ -120,8 +160,10 @@ export function CattleManagementInterface() {
         return
       }
 
-      console.log("[v0] Successfully loaded cattle:", data?.length || 0, "animals")
-      setCattle(data || [])
+      setCattle(cattleData || [])
+      setLotes(lotesData || [])
+      setPastos(pastosData || [])
+      setOcupacoesPasto(ocupacoesData || [])
       setConnectionError(null)
     } catch (err) {
       console.error("[v0] Unexpected error loading cattle:", err)
@@ -158,6 +200,13 @@ export function CattleManagementInterface() {
     return diffDays
   }
 
+  // Get lotes that are in a specific pasto
+  const getLotesInPasto = (pastoId: string): string[] => {
+    return ocupacoesPasto
+      .filter((o) => o.pasto_id === pastoId)
+      .map((o) => o.lote_id)
+  }
+
   const filteredCattle = cattle.filter((animal) => {
     const matchesSearch =
       animal.marca_fogo.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -169,7 +218,20 @@ export function CattleManagementInterface() {
       (statusFilter === "ativo" && animal.ativo) ||
       (statusFilter === "inativo" && !animal.ativo)
 
-    return matchesSearch && matchesSex && matchesStatus
+    // Filter by lote
+    const matchesLote =
+      loteFilter === "todos" ||
+      (loteFilter === "sem_lote" && !animal.lote_id) ||
+      animal.lote_id === loteFilter
+
+    // Filter by pasto (animals in lotes that are in the selected pasto)
+    let matchesPasto = true
+    if (pastoFilter !== "todos") {
+      const lotesInPasto = getLotesInPasto(pastoFilter)
+      matchesPasto = animal.lote_id ? lotesInPasto.includes(animal.lote_id) : false
+    }
+
+    return matchesSearch && matchesSex && matchesStatus && matchesLote && matchesPasto
   })
 
   const formatCurrency = (value: number | null) => {
@@ -206,7 +268,7 @@ export function CattleManagementInterface() {
             <div className="text-destructive text-lg font-semibold">Erro de Conexão</div>
             <p className="text-muted-foreground max-w-md mx-auto">{connectionError}</p>
             <div className="space-y-2">
-              <Button onClick={loadCattle} variant="default">
+              <Button onClick={loadData} variant="default">
                 Tentar Novamente
               </Button>
               <div className="text-sm text-muted-foreground">
@@ -241,7 +303,7 @@ export function CattleManagementInterface() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label htmlFor="search">Buscar</Label>
               <div className="relative">
@@ -265,7 +327,7 @@ export function CattleManagementInterface() {
                 <SelectContent>
                   <SelectItem value="Todos">Todos</SelectItem>
                   <SelectItem value="Macho">Macho</SelectItem>
-                  <SelectItem value="Fêmea">Fêmea</SelectItem>
+                  <SelectItem value="Fêmea">Femea</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -280,6 +342,41 @@ export function CattleManagementInterface() {
                   <SelectItem value="ativo">Ativos</SelectItem>
                   <SelectItem value="inativo">Inativos</SelectItem>
                   <SelectItem value="todos">Todos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="lote-filter">Lote</Label>
+              <Select value={loteFilter} onValueChange={setLoteFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os lotes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os lotes</SelectItem>
+                  <SelectItem value="sem_lote">Sem lote</SelectItem>
+                  {lotes.map((lote) => (
+                    <SelectItem key={lote.id} value={lote.id}>
+                      {lote.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pasto-filter">Pasto</Label>
+              <Select value={pastoFilter} onValueChange={setPastoFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os pastos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os pastos</SelectItem>
+                  {pastos.map((pasto) => (
+                    <SelectItem key={pasto.id} value={pasto.id}>
+                      {pasto.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -414,7 +511,7 @@ export function CattleManagementInterface() {
           animal={selectedAnimal}
           open={!!selectedAnimal}
           onClose={() => setSelectedAnimal(null)}
-          onUpdate={loadCattle}
+          onUpdate={loadData}
         />
       )}
 
@@ -425,7 +522,7 @@ export function CattleManagementInterface() {
           onClose={() => setWeighingAnimal(null)}
           onSuccess={() => {
             setWeighingAnimal(null)
-            loadCattle()
+            loadData()
           }}
         />
       )}
