@@ -66,7 +66,8 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/mapeamento") ||
     request.nextUrl.pathname.startsWith("/configuracoes") ||
     request.nextUrl.pathname.startsWith("/importar") ||
-    request.nextUrl.pathname.startsWith("/exportar")
+    request.nextUrl.pathname.startsWith("/exportar") ||
+    request.nextUrl.pathname.startsWith("/propriedades")
 
   if (!isPublicPath && !user) {
     // no user, potentially respond by redirecting the user to the login page
