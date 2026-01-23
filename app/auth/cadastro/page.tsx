@@ -48,7 +48,7 @@ export default function CadastroPage() {
         },
       })
       if (error) throw error
-      router.push("/auth/confirmar-email")
+      router.push(`/auth/confirmar-email?email=${encodeURIComponent(email)}`)
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "Erro ao criar conta")
     } finally {
