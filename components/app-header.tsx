@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Settings, LogOut, User, Building2, Home, ArrowLeft, MapPin } from "lucide-react"
+import { Settings, LogOut, User, Building2, Home, ArrowLeft, MapPin, Plus } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { useFarm } from "@/contexts/farm-context"
@@ -182,6 +182,17 @@ export function AppHeader() {
         </div>
 
         <div className="flex items-center space-x-2">
+          {fazendas.length === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/propriedades")}
+              className="bg-transparent"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Criar Fazenda
+            </Button>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full bg-transparent">

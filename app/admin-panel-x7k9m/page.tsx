@@ -1,5 +1,7 @@
 "use client"
 
+import React from "react"
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -42,8 +44,7 @@ import Loading from "./loading"
 interface UserProfile {
   id: string
   email: string
-  first_name: string | null
-  last_name: string | null
+  nome: string | null
   created_at: string
   status_acesso: "ativo" | "suspenso" | "cancelado" | "pendente"
   tipo_acesso: "ilimitado" | "por_prazo" | "por_dias"
@@ -58,6 +59,36 @@ interface DashboardStats {
   newUsers: number
   activeUsers: number
   inactiveUsers: number
+}
+
+function calculateStats(userProfiles: UserProfile[], setStats: React.Dispatch<React.SetStateAction<DashboardStats>>) {
+  const now = new Date()
+  const sevenDaysAgo = subDays(now, 7)
+  const fifteenDaysAgo = subDays(now, 15)
+
+  const newUsers = userProfiles.filter((u) => {
+    const createdAt = new Date(u.created_at)
+    return differenceInDays(now, createdAt) <= 7
+  }).length
+
+  const activeUsers = userProfiles.filter((u) => {
+    if (!u.ultimo_acesso) return false
+    const lastAccess = new Date(u.ultimo_acesso)
+    return differenceInDays(now, lastAccess) <= 7
+  }).length
+
+  const inactiveUsers = userProfiles.filter((u) => {
+    if (!u.ultimo_acesso) return true
+    const lastAccess = new Date(u.ultimo_acesso)
+    return differenceInDays(now, lastAccess) > 15
+  }).length
+
+  setStats({
+    totalUsers: userProfiles.length,
+    newUsers,
+    activeUsers,
+    inactiveUsers,
+  })
 }
 
 export default function AdminPanelPage() {
@@ -79,8 +110,8 @@ export default function AdminPanelPage() {
 
   // Form state for editing
   const [editForm, setEditForm] = useState({
-    first_name: "",
-    last_name: "",
+    nome: "",
+    email: "",
     status_acesso: "ativo" as UserProfile["status_acesso"],
     tipo_acesso: "ilimitado" as UserProfile["tipo_acesso"],
     data_expiracao_acesso: "",
@@ -102,24 +133,25 @@ export default function AdminPanelPage() {
     try {
       const supabase = createClient()
 
-      // Get all profiles with user info
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false })
-
-      if (error) throw error
-
-      // Get auth users to get emails
-      const userProfiles: UserProfile[] = []
+      // Get all profiles - use API route to bypass RLS
+      const response = await fetch("/api/admin/users")
       
-      for (const profile of profiles || []) {
-        // Try to get user email from auth.users via RPC or just use profile data
-        userProfiles.push({
+      if (!response.ok) {
+        // Fallback to direct query if API fails
+        const { data: profiles, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("[v0] Error loading profiles:", error)
+          throw error
+        }
+
+        const userProfiles: UserProfile[] = (profiles || []).map((profile) => ({
           id: profile.id,
           email: profile.email || `user_${profile.id.slice(0, 8)}@unknown.com`,
-          first_name: profile.first_name,
-          last_name: profile.last_name,
+          nome: profile.nome,
           created_at: profile.created_at,
           status_acesso: profile.status_acesso || "ativo",
           tipo_acesso: profile.tipo_acesso || "ilimitado",
@@ -127,39 +159,18 @@ export default function AdminPanelPage() {
           dias_acesso_restantes: profile.dias_acesso_restantes,
           ultimo_acesso: profile.ultimo_acesso,
           is_admin: profile.is_admin || false,
-        })
+        }))
+
+        setUsers(userProfiles)
+        calculateStats(userProfiles, setStats)
+        return
       }
 
-      setUsers(userProfiles)
+      const { users: userProfiles } = await response.json()
+      setUsers(userProfiles || [])
 
       // Calculate stats
-      const now = new Date()
-      const sevenDaysAgo = subDays(now, 7)
-      const fifteenDaysAgo = subDays(now, 15)
-
-      const newUsers = userProfiles.filter((u) => {
-        const createdAt = new Date(u.created_at)
-        return differenceInDays(now, createdAt) <= 7
-      }).length
-
-      const activeUsers = userProfiles.filter((u) => {
-        if (!u.ultimo_acesso) return false
-        const lastAccess = new Date(u.ultimo_acesso)
-        return differenceInDays(now, lastAccess) <= 7
-      }).length
-
-      const inactiveUsers = userProfiles.filter((u) => {
-        if (!u.ultimo_acesso) return true
-        const lastAccess = new Date(u.ultimo_acesso)
-        return differenceInDays(now, lastAccess) > 15
-      }).length
-
-      setStats({
-        totalUsers: userProfiles.length,
-        newUsers,
-        activeUsers,
-        inactiveUsers,
-      })
+      calculateStats(userProfiles, setStats)
     } catch (error) {
       console.error("Error loading users:", error)
     } finally {
@@ -170,8 +181,8 @@ export default function AdminPanelPage() {
   const handleEditUser = (user: UserProfile) => {
     setSelectedUser(user)
     setEditForm({
-      first_name: user.first_name || "",
-      last_name: user.last_name || "",
+      nome: user.nome || "",
+      email: user.email,
       status_acesso: user.status_acesso,
       tipo_acesso: user.tipo_acesso,
       data_expiracao_acesso: user.data_expiracao_acesso || "",
@@ -184,11 +195,9 @@ export default function AdminPanelPage() {
     if (!selectedUser) return
 
     try {
-      const supabase = createClient()
-
       const updateData: Record<string, unknown> = {
-        first_name: editForm.first_name || null,
-        last_name: editForm.last_name || null,
+        nome: editForm.nome || null,
+        email: editForm.email,
         status_acesso: editForm.status_acesso,
         tipo_acesso: editForm.tipo_acesso,
       }
@@ -205,9 +214,13 @@ export default function AdminPanelPage() {
         updateData.dias_acesso_restantes = null
       }
 
-      const { error } = await supabase.from("profiles").update(updateData).eq("id", selectedUser.id)
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: selectedUser.id, ...updateData }),
+      })
 
-      if (error) throw error
+      if (!response.ok) throw new Error("Failed to update user")
 
       setEditDialogOpen(false)
       loadUsers()
@@ -218,8 +231,6 @@ export default function AdminPanelPage() {
 
   const handleQuickAction = async (userId: string, action: "suspend" | "cancel" | "activate" | "unlimited") => {
     try {
-      const supabase = createClient()
-
       let updateData: Record<string, unknown> = {}
 
       switch (action) {
@@ -237,9 +248,13 @@ export default function AdminPanelPage() {
           break
       }
 
-      const { error } = await supabase.from("profiles").update(updateData).eq("id", userId)
+      const response = await fetch("/api/admin/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, ...updateData }),
+      })
 
-      if (error) throw error
+      if (!response.ok) throw new Error("Failed to update user")
 
       loadUsers()
     } catch (error) {
@@ -255,8 +270,7 @@ export default function AdminPanelPage() {
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
-      (user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
+      (user.nome?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
 
     const matchesStatus = statusFilter === "todos" || user.status_acesso === statusFilter
 
@@ -436,9 +450,7 @@ export default function AdminPanelPage() {
                           <TableCell>
                             <div>
                               <div className="font-medium">
-                                {user.first_name || user.last_name
-                                  ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
-                                  : "Sem nome"}
+                                {user.nome || "Sem nome"}
                               </div>
                               <div className="text-sm text-muted-foreground">{user.email}</div>
                             </div>
@@ -538,23 +550,21 @@ export default function AdminPanelPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Nome</Label>
-                <Input
-                  value={editForm.first_name}
-                  onChange={(e) => setEditForm({ ...editForm, first_name: e.target.value })}
-                  placeholder="Nome"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Sobrenome</Label>
-                <Input
-                  value={editForm.last_name}
-                  onChange={(e) => setEditForm({ ...editForm, last_name: e.target.value })}
-                  placeholder="Sobrenome"
-                />
-              </div>
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input
+                value={editForm.nome}
+                onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+                placeholder="Nome"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                placeholder="Email"
+              />
             </div>
 
             <div className="space-y-2">
