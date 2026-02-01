@@ -931,7 +931,17 @@ export function CommunicationInterface() {
               {connectionStatus === "error" && "Erro"}
             </div>
             <p className="text-xs text-muted-foreground">
-              {config.mode === "simulation" ? "Modo simulacao" : `Modo ${config.mode}`}
+              {config.mode === "simulation" 
+                ? "Modo simulacao" 
+                : config.mode === "usb" && config.usbMode === "ethernet"
+                  ? "USB Ethernet (ADI)"
+                  : config.mode === "usb" && config.usbMode === "legacy"
+                    ? "USB Serial (SCP)"
+                    : config.mode === "wifi"
+                      ? "Wi-Fi (ADI)"
+                      : config.mode === "bluetooth"
+                        ? "Bluetooth (SCP)"
+                        : `Modo ${config.mode}`}
             </p>
           </CardContent>
         </Card>
@@ -965,9 +975,15 @@ export function CommunicationInterface() {
             <CardTitle className="text-sm font-medium">Protocolo</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold uppercase">{config.protocol}</div>
+            <div className="text-2xl font-bold uppercase">
+              {(config.mode === "usb" && config.usbMode === "ethernet") || config.mode === "wifi" ? "ADI" : config.protocol}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {config.protocol === "scp" ? "Serial Communications" : "Animal Data Interface"}
+              {(config.mode === "usb" && config.usbMode === "ethernet") || config.mode === "wifi" 
+                ? "Animal Data Interface (REST API)" 
+                : config.protocol === "scp" 
+                  ? "Serial Communications Protocol" 
+                  : "Animal Data Interface"}
             </p>
           </CardContent>
         </Card>
