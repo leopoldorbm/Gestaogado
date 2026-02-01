@@ -106,21 +106,12 @@ export async function GET(request: Request) {
       case "read":
         console.log(`[v0] Simulating data read from ${port}...`)
 
-        const connection = globalSimulationState.connections.get(port)
+        // In serverless environment, state doesn't persist between requests
+        // So we always assume connection is active for simulation purposes
+        // The "connect" action is just for compatibility with the client code
 
-        if (!connection || !connection.isOpen) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              data: null,
-              error: `No active connection to ${port}`,
-            }),
-            { headers: jsonHeaders },
-          )
-        }
-
-        // Simulate occasional "no data" responses
-        if (Math.random() < 0.2) {
+        // Simulate occasional "no data" responses (10% chance)
+        if (Math.random() < 0.1) {
           return new Response(
             JSON.stringify({
               success: true,
