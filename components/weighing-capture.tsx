@@ -12,79 +12,66 @@ interface WeightReading {
   animalId: string | null
   stable: boolean
   timestamp: string
-  raw: string
+  raw?: string
 }
 
 interface WeighingCaptureProps {
   isConnected: boolean
-  connectionStatus: string
-  onWeightCaptured?: (reading: WeightReading) => void
+  currentWeight?: number | null
+  currentAnimalId?: string | null
+  onWeightCaptured?: (data: { weight: number; animalId?: string; timestamp: Date }) => void
 }
 
-export function WeighingCapture({ isConnected, connectionStatus, onWeightCaptured }: WeighingCaptureProps) {
-  const [currentReading, setCurrentReading] = useState<WeightReading | null>(null)
+export function WeighingCapture({ isConnected, currentWeight, currentAnimalId, onWeightCaptured }: WeighingCaptureProps) {
   const [isCapturing, setIsCapturing] = useState(false)
   const [capturedReadings, setCapturedReadings] = useState<WeightReading[]>([])
+  const [lastCapturedWeight, setLastCapturedWeight] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [connectionStatus, setConnectionStatus] = useState<string>("")
+  const [currentReading, setCurrentReading] = useState<WeightReading | null>(null)
 
-  // Auto-capture when connected and stable reading available
+  // Create a reading object from current props
   useEffect(() => {
-    if (!isConnected || !isCapturing) return
+    if (currentWeight) {
+      setCurrentReading({
+        weight: currentWeight,
+        unit: "kg",
+        animalId: currentAnimalId || null,
+        stable: true,
+        timestamp: new Date().toISOString(),
+      })
+    } else {
+      setCurrentReading(null)
+    }
+  }, [currentWeight, currentAnimalId])
 
-    // Send initial connect command (for compatibility)
-    fetch("/api/serial-proxy?action=connect&port=COM21", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    }).catch(() => {})
+  useEffect(() => {
+    if (isConnected) {
+      setConnectionStatus("Conectado")
+    } else {
+      setConnectionStatus("Desconectado")
+    }
+  }, [isConnected])
 
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch("/api/serial-proxy?action=read&port=COM21", {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            "Cache-Control": "no-cache",
-          },
-        })
+  // Auto-capture when capturing is enabled and we have a stable reading
+  useEffect(() => {
+    if (!isConnected || !isCapturing || !currentWeight) return
 
-        if (!response.ok) {
-          setError(`Erro na API: ${response.status}`)
-          return
-        }
+    // Avoid capturing the same weight twice
+    if (currentWeight === lastCapturedWeight) return
 
-        const result = await response.json()
+    // Capture the current reading
+    const reading: WeightReading = {
+      weight: currentWeight,
+      unit: "kg",
+      animalId: currentAnimalId || null,
+      stable: true,
+      timestamp: new Date().toISOString(),
+    }
 
-        if (result.success && result.data) {
-          const reading: WeightReading = {
-            weight: result.data.weight,
-            unit: result.data.unit || "kg",
-            animalId: result.data.animalId,
-            stable: result.data.stable,
-            timestamp: result.data.timestamp,
-            raw: result.data.raw,
-          }
-
-          setCurrentReading(reading)
-          setError(null)
-
-          // Auto-capture stable readings with weight
-          if (reading.stable && reading.weight && reading.weight > 0) {
-            handleCaptureReading(reading)
-          }
-        } else if (result.data === null) {
-          // No data available - this is normal, waiting for next read
-          setError(null)
-        } else {
-          setError(result.error || "Falha ao ler dados")
-        }
-      } catch (err) {
-        console.error("[v0] Weight reading error:", err)
-        setError("Erro de comunicacao com a balanca")
-      }
-    }, 1000) // Read every second
-
-    return () => clearInterval(interval)
-  }, [isConnected, isCapturing])
+    handleCaptureReading(reading)
+    setLastCapturedWeight(currentWeight)
+  }, [isConnected, isCapturing, currentWeight, currentAnimalId, lastCapturedWeight])
 
   const handleCaptureReading = (reading: WeightReading) => {
     if (!reading.weight || reading.weight <= 0) return
@@ -99,9 +86,15 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
     }
 
     setCapturedReadings((prev) => [...prev, reading])
-    onWeightCaptured?.(reading)
-
-    console.log("[v0] Weight captured:", reading)
+    
+    // Call the callback with the correct format
+    if (reading.weight && onWeightCaptured) {
+      onWeightCaptured({
+        weight: reading.weight,
+        animalId: reading.animalId || undefined,
+        timestamp: new Date(reading.timestamp),
+      })
+    }
   }
 
   const toggleCapture = () => {
@@ -137,7 +130,7 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
             {/* Connection Status */}
             <div className="flex items-center gap-2">
               <Badge variant={isConnected ? "default" : "destructive"}>
-                {isConnected ? "Conectado" : "Desconectado"}
+                {connectionStatus}
               </Badge>
               <span className="text-sm text-muted-foreground">{connectionStatus}</span>
             </div>
