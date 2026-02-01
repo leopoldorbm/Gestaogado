@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { WeighingCapture } from "@/components/weighing-capture"
+import { useElectron } from "@/hooks/use-electron"
 
 interface ScaleReading {
   weight: number
@@ -53,6 +54,35 @@ export function CommunicationInterface() {
   const [currentReading, setCurrentReading] = useState<ScaleReading | null>(null)
   const [recentReadings, setRecentReadings] = useState<ScaleReading[]>([])
   const [errorMessage, setErrorMessage] = useState<string>("")
+
+  // Electron API for native hardware access
+  const electron = useElectron()
+
+  // Sync Electron state with component state
+  useEffect(() => {
+    if (electron.isElectron && electron.currentWeight !== null) {
+      const reading: ScaleReading = {
+        weight: electron.currentWeight,
+        animalId: electron.currentAnimalId || undefined,
+        timestamp: new Date(),
+        stable: electron.isStable,
+      }
+      setCurrentReading(reading)
+      setRecentReadings((prev) => [reading, ...prev.slice(0, 9)])
+    }
+  }, [electron.currentWeight, electron.currentAnimalId, electron.isStable, electron.isElectron])
+
+  useEffect(() => {
+    if (electron.isElectron && electron.isConnected) {
+      setConnectionStatus("connected")
+    }
+  }, [electron.isConnected, electron.isElectron])
+
+  useEffect(() => {
+    if (electron.error) {
+      setErrorMessage(electron.error)
+    }
+  }, [electron.error])
 
   const [config, setConfig] = useState<ConnectionConfig>(() => {
     if (typeof window !== "undefined") {
@@ -798,6 +828,41 @@ export function CommunicationInterface() {
   }
 
   const connectToScale = async () => {
+    // If running in Electron, use native APIs
+    if (electron.isElectron) {
+      setConnectionStatus("connecting")
+      setErrorMessage("")
+
+      let success = false
+
+      if (config.mode === "usb" && config.usbMode === "ethernet") {
+        // TCP connection (USB Ethernet mode)
+        success = await electron.connectTCP(config.ipAddress, config.port)
+        if (success) {
+          electron.startWeightPolling(1000)
+        }
+      } else if (config.mode === "usb" && config.usbMode === "legacy") {
+        // Serial connection (USB Legacy mode)
+        success = await electron.connectSerial(config.serialPort, config.serialBaudRate)
+      } else if (config.mode === "simulation") {
+        // Simulation mode works even in Electron
+        setConnectionStatus("connected")
+        startSimulationMode()
+        return
+      }
+
+      if (success) {
+        setConnectionStatus("connected")
+        if (typeof window !== "undefined") {
+          localStorage.setItem("scale-connection-state", JSON.stringify({ connected: true, mode: config.mode }))
+        }
+      } else {
+        setConnectionStatus("error")
+      }
+      return
+    }
+
+    // Web environment - simulation mode only works reliably
     if (config.mode === "simulation") {
       setConnectionStatus("connecting")
       setErrorMessage("")
@@ -847,6 +912,19 @@ export function CommunicationInterface() {
   }
 
   const disconnectFromScale = async () => {
+    // If running in Electron, use native disconnect
+    if (electron.isElectron && electron.isConnected) {
+      electron.stopWeightPolling()
+      await electron.disconnect()
+      setConnectionStatus("disconnected")
+      setCurrentReading(null)
+      setErrorMessage("")
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("scale-connection-state")
+      }
+      return
+    }
+
     if (config.mode === "simulation") {
       if (pollingRef.current) {
         clearInterval(pollingRef.current)
@@ -1131,21 +1209,30 @@ export function CommunicationInterface() {
             </div>
           )}
 
-          {config.mode === "simulation" && (
-            <Alert className="border-blue-200 bg-blue-50/50">
-              <AlertDescription className="text-blue-800">
-                <strong>Modo de Simulacao Ativo</strong><br />
-                Dados de peso simulados serao gerados automaticamente a cada 2 segundos. 
-                Para conectar a uma balanca real, baixe o codigo e execute localmente com <code className="bg-blue-100 px-1 rounded">npm run dev</code>.
+          {electron.isElectron && (
+            <Alert className="border-green-200 bg-green-50/50">
+              <AlertDescription className="text-green-800">
+                <strong>Modo Desktop Ativo</strong><br />
+                Aplicacao Electron detectada. Conexao direta com hardware (USB/Serial/TCP) disponivel.
               </AlertDescription>
             </Alert>
           )}
 
-          {config.mode !== "simulation" && (
+          {!electron.isElectron && config.mode === "simulation" && (
+            <Alert className="border-blue-200 bg-blue-50/50">
+              <AlertDescription className="text-blue-800">
+                <strong>Modo de Simulacao Ativo</strong><br />
+                Dados de peso simulados serao gerados automaticamente a cada 2 segundos. 
+                Para conectar a uma balanca real, use a versao desktop da aplicacao.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!electron.isElectron && config.mode !== "simulation" && (
             <Alert className="border-amber-200 bg-amber-50/50">
               <AlertDescription className="text-amber-800">
-                <strong>Importante:</strong> Conexao com hardware local (USB/Bluetooth/Serial) so funciona quando a aplicacao e executada localmente no seu computador. 
-                No ambiente v0/Vercel (nuvem), use o <strong>Modo Simulacao</strong> para testes.
+                <strong>Importante:</strong> Conexao com hardware local (USB/Bluetooth/Serial) requer a versao desktop da aplicacao. 
+                No ambiente web, use o <strong>Modo Simulacao</strong> para testes ou baixe o instalador desktop.
               </AlertDescription>
             </Alert>
           )}
