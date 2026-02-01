@@ -27,14 +27,46 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
   const [capturedReadings, setCapturedReadings] = useState<WeightReading[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // Ensure connection is established when starting capture
+  const ensureConnection = async (): Promise<boolean> => {
+    try {
+      const connectResponse = await fetch("/api/serial-proxy?action=connect&port=COM21", {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      })
+      const connectResult = await connectResponse.json()
+      return connectResult.success || connectResult.connected
+    } catch (err) {
+      console.error("[v0] Connection error:", err)
+      return false
+    }
+  }
+
   // Auto-capture when connected and stable reading available
   useEffect(() => {
     if (!isConnected || !isCapturing) return
 
-    const interval = setInterval(async () => {
-      try {
-        console.log("[v0] Fetching weight data...")
+    let connectionEstablished = false
 
+    const startCapture = async () => {
+      // First ensure connection is established
+      connectionEstablished = await ensureConnection()
+      if (!connectionEstablished) {
+        setError("Falha ao estabelecer conexao com a balanca")
+        return
+      }
+      setError(null)
+    }
+
+    startCapture()
+
+    const interval = setInterval(async () => {
+      if (!connectionEstablished) {
+        connectionEstablished = await ensureConnection()
+        if (!connectionEstablished) return
+      }
+
+      try {
         const response = await fetch("/api/serial-proxy?action=read&port=COM21", {
           method: "GET",
           headers: {
@@ -43,36 +75,13 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
           },
         })
 
-        console.log("[v0] Response status:", response.status)
-        console.log("[v0] Response headers:", Object.fromEntries(response.headers.entries()))
-
         if (!response.ok) {
-          const errorText = await response.text()
-          console.error("[v0] API response error:", response.status, errorText)
-          setError(`API Error: ${response.status}`)
+          setError(`Erro na API: ${response.status}`)
           return
         }
 
-        const contentType = response.headers.get("content-type")
-        if (!contentType || !contentType.includes("application/json")) {
-          const responseText = await response.text()
-          console.error("[v0] Non-JSON response received:", responseText.substring(0, 200))
-          setError("Invalid response format from scale API")
-          return
-        }
-
-        let result
-        try {
-          const responseText = await response.text()
-          console.log("[v0] Raw response text:", responseText.substring(0, 200))
-          result = JSON.parse(responseText)
-        } catch (parseError) {
-          console.error("[v0] JSON parse error:", parseError)
-          setError("Failed to parse response from scale API")
-          return
-        }
-
-        console.log("[v0] Parsed result:", result)
+        // Read response body only once
+        const result = await response.json()
 
         if (result.success && result.data) {
           const reading: WeightReading = {
@@ -94,20 +103,16 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
         } else if (result.data === null) {
           // No data available - this is normal
           setError(null)
+        } else if (result.error?.includes("No active connection")) {
+          // Connection lost, try to reconnect
+          connectionEstablished = false
+          setError("Reconectando...")
         } else {
-          setError(result.error || "Failed to read weight data")
+          setError(result.error || "Falha ao ler dados")
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Unknown error"
         console.error("[v0] Weight reading error:", err)
-
-        if (errorMessage.includes("JSON") || errorMessage.includes("Unexpected token")) {
-          setError("Data format error - check API response")
-        } else if (errorMessage.includes("fetch") || errorMessage.includes("network")) {
-          setError("Network connection error")
-        } else {
-          setError("Communication error with scale")
-        }
+        setError("Erro de comunicacao com a balanca")
       }
     }, 1000) // Read every second
 
