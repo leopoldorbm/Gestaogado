@@ -27,45 +27,17 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
   const [capturedReadings, setCapturedReadings] = useState<WeightReading[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  // Ensure connection is established when starting capture
-  const ensureConnection = async (): Promise<boolean> => {
-    try {
-      const connectResponse = await fetch("/api/serial-proxy?action=connect&port=COM21", {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      })
-      const connectResult = await connectResponse.json()
-      return connectResult.success || connectResult.connected
-    } catch (err) {
-      console.error("[v0] Connection error:", err)
-      return false
-    }
-  }
-
   // Auto-capture when connected and stable reading available
   useEffect(() => {
     if (!isConnected || !isCapturing) return
 
-    let connectionEstablished = false
-
-    const startCapture = async () => {
-      // First ensure connection is established
-      connectionEstablished = await ensureConnection()
-      if (!connectionEstablished) {
-        setError("Falha ao estabelecer conexao com a balanca")
-        return
-      }
-      setError(null)
-    }
-
-    startCapture()
+    // Send initial connect command (for compatibility)
+    fetch("/api/serial-proxy?action=connect&port=COM21", {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    }).catch(() => {})
 
     const interval = setInterval(async () => {
-      if (!connectionEstablished) {
-        connectionEstablished = await ensureConnection()
-        if (!connectionEstablished) return
-      }
-
       try {
         const response = await fetch("/api/serial-proxy?action=read&port=COM21", {
           method: "GET",
@@ -80,7 +52,6 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
           return
         }
 
-        // Read response body only once
         const result = await response.json()
 
         if (result.success && result.data) {
@@ -101,12 +72,8 @@ export function WeighingCapture({ isConnected, connectionStatus, onWeightCapture
             handleCaptureReading(reading)
           }
         } else if (result.data === null) {
-          // No data available - this is normal
+          // No data available - this is normal, waiting for next read
           setError(null)
-        } else if (result.error?.includes("No active connection")) {
-          // Connection lost, try to reconnect
-          connectionEstablished = false
-          setError("Reconectando...")
         } else {
           setError(result.error || "Falha ao ler dados")
         }
