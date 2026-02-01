@@ -66,8 +66,10 @@ export function CommunicationInterface() {
       }
     }
 
+    // Default to simulation mode - this is the only mode that works in v0/Vercel environment
+    // For real hardware connection, user needs to download and run locally
     return {
-      mode: "simulation", // Default to simulation mode for development
+      mode: "simulation",
       usbMode: "ethernet",
       ipAddress: "192.168.7.1",
       port: 9000,
@@ -115,29 +117,38 @@ export function CommunicationInterface() {
 
     if (pollingRef.current) clearInterval(pollingRef.current)
 
-    // Simulate weight readings with SCP protocol responses
+    // Generate first reading immediately
+    generateSimulatedReading()
+
+    // Then continue with interval
     pollingRef.current = setInterval(() => {
-      // Generate realistic weight readings
-      const baseWeight = 450 + Math.random() * 200 // 450-650 kg range
-      const isStable = Math.random() > 0.3 // 70% chance of stable reading
-      const weight = isStable
-        ? Math.round(baseWeight * 10) / 10
-        : // Stable: round to 0.1 kg
-          Math.round(baseWeight * 100) / 100 // Unstable: more decimal places
-
-      // Simulate SCP response format: [123.5] or [U123.5]
-      const scpResponse = isStable ? `[${weight}]` : `[U${weight}]`
-      console.log("[v0] Simulated SCP response:", scpResponse)
-
-      // Parse the simulated response
-      parseSCPResponse(scpResponse)
-
-      // Occasionally simulate animal ID
-      if (Math.random() > 0.8) {
-        const animalId = `BR${Math.floor(Math.random() * 900000 + 100000)}`
-        console.log("[v0] Simulated animal ID:", animalId)
-      }
+      generateSimulatedReading()
     }, 2000) // Poll every 2 seconds like real scale
+  }
+
+  const generateSimulatedReading = () => {
+    // Generate realistic weight readings (cattle typically 400-700 kg)
+    const baseWeight = 450 + Math.random() * 200 // 450-650 kg range
+    const isStable = Math.random() > 0.25 // 75% chance of stable reading
+    const weight = isStable
+      ? Math.round(baseWeight * 10) / 10 // Stable: round to 0.1 kg
+      : Math.round(baseWeight * 100) / 100 // Unstable: more decimal places
+
+    // Occasionally add animal ID (30% chance)
+    const animalId = Math.random() > 0.7 
+      ? `BR${Math.floor(Math.random() * 900000 + 100000)}` 
+      : undefined
+
+    const reading: ScaleReading = {
+      weight: weight,
+      animalId: animalId,
+      timestamp: new Date(),
+      stable: isStable,
+    }
+
+    setCurrentReading(reading)
+    setRecentReadings((prev) => [reading, ...prev.slice(0, 9)])
+    console.log("[v0] Simulated reading:", reading)
   }
 
   const checkBluetoothSupport = (): boolean => {
@@ -719,13 +730,19 @@ export function CommunicationInterface() {
 
       const apiSupport = checkAPISupport()
 
-      if (config.mode === "simulation" || (!apiSupport.bluetooth && !apiSupport.serial)) {
-        console.log("[v0] Using simulation mode - APIs not available or blocked")
-        setDetectedDevices(["Balança Simulada (Modo Desenvolvimento)"])
+      if (config.mode === "simulation") {
+        console.log("[v0] Using simulation mode")
+        setDetectedDevices(["Balanca Simulada (Modo Desenvolvimento)"])
         setConnectionStatus("disconnected")
-        if (apiSupport.message) {
-          setErrorMessage(apiSupport.message)
-        }
+        setErrorMessage("")
+        return
+      }
+
+      if (!apiSupport.bluetooth && !apiSupport.serial) {
+        console.log("[v0] APIs not available or blocked - suggesting simulation mode")
+        setDetectedDevices(["Balanca Simulada (Modo Desenvolvimento)"])
+        setConnectionStatus("disconnected")
+        setErrorMessage("APIs de hardware nao disponiveis neste ambiente. Altere para 'Modo Simulacao' nas configuracoes acima.")
         return
       }
 
@@ -809,8 +826,22 @@ export function CommunicationInterface() {
       }
     } else if (config.mode === "usb" && config.usbMode === "ethernet") {
       await connectEthernet()
+    } else if (config.mode === "usb" || config.mode === "wifi" || config.mode === "bluetooth") {
+      // Check if APIs are available
+      const apiSupport = checkAPISupport()
+      if (!apiSupport.serial && !apiSupport.bluetooth) {
+        setErrorMessage(
+          "Conexao com hardware local nao e possivel neste ambiente (v0/Vercel). " +
+          "Para conectar a balanca real, baixe o codigo e execute localmente com 'npm run dev'. " +
+          "Para testes, use o Modo Simulacao."
+        )
+        setConnectionStatus("error")
+      } else {
+        setErrorMessage("Nenhum dispositivo disponivel para conexao. Detecte dispositivos primeiro.")
+        setConnectionStatus("error")
+      }
     } else {
-      setErrorMessage("Nenhum dispositivo disponível para conexão")
+      setErrorMessage("Modo de conexao invalido")
       setConnectionStatus("error")
     }
   }
@@ -1101,10 +1132,20 @@ export function CommunicationInterface() {
           )}
 
           {config.mode === "simulation" && (
-            <Alert>
-              <AlertDescription>
-                Modo de simulação ativo. Dados de peso simulados serão gerados para desenvolvimento e testes. Use este
-                modo quando as APIs nativas não estiverem disponíveis.
+            <Alert className="border-blue-200 bg-blue-50/50">
+              <AlertDescription className="text-blue-800">
+                <strong>Modo de Simulacao Ativo</strong><br />
+                Dados de peso simulados serao gerados automaticamente a cada 2 segundos. 
+                Para conectar a uma balanca real, baixe o codigo e execute localmente com <code className="bg-blue-100 px-1 rounded">npm run dev</code>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {config.mode !== "simulation" && (
+            <Alert className="border-amber-200 bg-amber-50/50">
+              <AlertDescription className="text-amber-800">
+                <strong>Importante:</strong> Conexao com hardware local (USB/Bluetooth/Serial) so funciona quando a aplicacao e executada localmente no seu computador. 
+                No ambiente v0/Vercel (nuvem), use o <strong>Modo Simulacao</strong> para testes.
               </AlertDescription>
             </Alert>
           )}
