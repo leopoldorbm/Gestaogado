@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Cog as Cow, BarChart3, AlertTriangle, TrendingUp, Database } from "lucide-react"
+import { Beef, BarChart3, AlertTriangle, TrendingUp, Database } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useFarm } from "@/contexts/farm-context"
 
@@ -385,7 +385,7 @@ export function DashboardStats() {
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total de Animais</CardTitle>
-          <Cow className="h-4 w-4 text-muted-foreground" />
+          <Beef className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{data.totalAnimals}</div>
@@ -429,7 +429,7 @@ export function DashboardStats() {
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Machos</CardTitle>
-          <Cow className="h-4 w-4 text-blue-500" />
+          <Beef className="h-4 w-4 text-blue-500" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{data.totalMales}</div>
@@ -442,7 +442,7 @@ export function DashboardStats() {
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Fêmeas</CardTitle>
-          <Cow className="h-4 w-4 text-pink-500" />
+          <Beef className="h-4 w-4 text-pink-500" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{data.totalFemales}</div>
@@ -455,7 +455,7 @@ export function DashboardStats() {
       <Card className="hover:shadow-lg transition-shadow">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Fêmeas Prenhas</CardTitle>
-          <Cow className="h-4 w-4 text-green-500" />
+          <Beef className="h-4 w-4 text-green-500" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{data.pregnantFemales}</div>

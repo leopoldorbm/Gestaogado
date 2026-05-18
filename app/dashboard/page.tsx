@@ -4,7 +4,7 @@ import { DashboardStats } from "@/components/dashboard-stats"
 import { AlertNotification } from "@/components/alert-notification"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Cog as Cow, BarChart3, Plus, AlertTriangle, MapPin, Scale, Usb, Search } from "lucide-react"
+import { Beef, BarChart3, Plus, AlertTriangle, MapPin, Scale, Usb, Search } from "lucide-react"
 import Link from "next/link"
 
 export default async function DashboardPage() {
@@ -54,7 +54,7 @@ export default async function DashboardPage() {
             </Link>
             <Link href="/gado">
               <Button className="w-full justify-start bg-transparent" variant="outline">
-                <Cow className="mr-2 h-4 w-4" />
+                <Beef className="mr-2 h-4 w-4" />
                 Gerenciar Rebanho
               </Button>
             </Link>
