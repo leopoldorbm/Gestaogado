@@ -40,8 +40,8 @@ export type Database = {
         Row: {
           id: string
           nome: string
-          endereco: string | null
-          proprietario: string | null
+          localizacao: string | null
+          area_total: number | null
           user_id: string
           created_at: string
           updated_at: string
@@ -49,8 +49,8 @@ export type Database = {
         Insert: {
           id?: string
           nome: string
-          endereco?: string | null
-          proprietario?: string | null
+          localizacao?: string | null
+          area_total?: number | null
           user_id: string
           created_at?: string
           updated_at?: string
@@ -58,8 +58,8 @@ export type Database = {
         Update: {
           id?: string
           nome?: string
-          endereco?: string | null
-          proprietario?: string | null
+          localizacao?: string | null
+          area_total?: number | null
           user_id?: string
           created_at?: string
           updated_at?: string
@@ -90,6 +90,41 @@ export type Database = {
           nome?: string
           area_hectares?: number | null
           capacidade_animais?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      pastos: {
+        Row: {
+          id: string
+          fazenda_id: string
+          nome: string
+          area_hectares: number | null
+          capacidade_animais: number | null
+          tipo_capim: string | null
+          status: "disponivel" | "ocupado" | "em_descanso" | "manutencao"
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          fazenda_id: string
+          nome: string
+          area_hectares?: number | null
+          capacidade_animais?: number | null
+          tipo_capim?: string | null
+          status?: "disponivel" | "ocupado" | "em_descanso" | "manutencao"
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          fazenda_id?: string
+          nome?: string
+          area_hectares?: number | null
+          capacidade_animais?: number | null
+          tipo_capim?: string | null
+          status?: "disponivel" | "ocupado" | "em_descanso" | "manutencao"
           created_at?: string
           updated_at?: string
         }
@@ -183,6 +218,41 @@ export type Database = {
           data_pesagem?: string
           observacoes?: string | null
           created_at?: string
+        }
+      }
+      ocupacao_pastos: {
+        Row: {
+          id: string
+          pasto_id: string
+          lote_id: string | null
+          data_entrada: string
+          data_saida: string | null
+          quantidade_animais: number
+          observacoes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pasto_id: string
+          lote_id?: string | null
+          data_entrada?: string
+          data_saida?: string | null
+          quantidade_animais?: number
+          observacoes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          pasto_id?: string
+          lote_id?: string | null
+          data_entrada?: string
+          data_saida?: string | null
+          quantidade_animais?: number
+          observacoes?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
     }
