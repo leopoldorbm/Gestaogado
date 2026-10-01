@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { getSupabaseConfig } from "@/lib/supabase/config"
 
 /**
  * Added important comment about Fluid compute compatibility
@@ -10,11 +11,10 @@ import { cookies } from "next/headers"
 export async function createClient() {
   const cookieStore = await cookies()
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const { url: supabaseUrl, key: supabaseKey } = getSupabaseConfig()
 
   if (!supabaseUrl || !supabaseKey) {
-    console.log("[v0] Missing Supabase environment variables on server - creating mock client")
+    console.warn("[v0] Supabase configuration is missing or invalid on the server; using the existing unavailable-client fallback.")
     // Return a mock client that prevents errors but doesn't perform real operations
     return {
       auth: {

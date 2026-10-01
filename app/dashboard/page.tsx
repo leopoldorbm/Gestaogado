@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { isSupabaseConfigured } from "@/lib/supabase/config"
 import { DashboardStats } from "@/components/dashboard-stats"
 import { AlertNotification } from "@/components/alert-notification"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,7 +15,7 @@ export default async function DashboardPage() {
     const { data, error } = await supabase.auth.getUser()
     if (error || !data?.user) {
       // Only redirect if we have a real Supabase configuration
-      const hasSupabaseConfig = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      const hasSupabaseConfig = isSupabaseConfigured()
       if (hasSupabaseConfig) {
         redirect("/auth/login")
       }

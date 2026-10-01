@@ -1,20 +1,16 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { getSupabaseConfig } from "@/lib/supabase/config"
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const { url: supabaseUrl, key: supabaseAnonKey } = getSupabaseConfig()
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.log("[v0] Missing Supabase environment variables - continuing without auth:", {
-      url: !!supabaseUrl,
-      key: !!supabaseAnonKey,
-    })
-    // Return early if environment variables are missing - allow all requests to proceed
+    console.warn("[v0] Supabase configuration is missing or invalid; middleware will continue without session refresh.")
     return supabaseResponse
   }
 
