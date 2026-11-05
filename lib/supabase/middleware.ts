@@ -1,19 +1,17 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { getSupabaseUrl } from "@/lib/supabase/config"
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseUrl = getSupabaseUrl()
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.log("[v0] Missing Supabase environment variables - continuing without auth:", {
-      url: !!supabaseUrl,
-      key: !!supabaseAnonKey,
-    })
+    console.warn("[v0] Supabase URL or public key is unavailable or invalid; continuing without session refresh.")
     // Return early if environment variables are missing - allow all requests to proceed
     return supabaseResponse
   }
